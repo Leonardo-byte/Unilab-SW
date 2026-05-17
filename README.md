@@ -439,15 +439,3 @@ __pycache__/
 .idea/
 ```
 
----
-
-## Comandos para subir este README
-
-Después de guardar este archivo como `README.md`, ejecutar:
-
-```powershell
-git add README.md .gitignore requirements.txt
-git commit -m "Add setup instructions for team"
-git push
-```
-
