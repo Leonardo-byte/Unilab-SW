@@ -102,13 +102,21 @@
             border-radius: 8px;
             overflow-x: auto;
         }
+
+        canvas {
+            width: 100%;
+            height: 320px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: white;
+        }
     </style>
 </head>
 
 <body>
     <h1>UniLab Dashboard</h1>
     <p class="subtitle">
-        Supervisión de telemetría, variables visibles, rangos de seguridad y notas.
+        Supervisión de telemetría, variables visibles, rangos de seguridad, notas y gráficos en tiempo real.
     </p>
 
     <div class="container">
@@ -126,13 +134,14 @@
                 Cargando variables...
             </div>
             <button onclick="saveVisibleVariables()">Guardar selección</button>
+            <button onclick="loadVariableControls()">Actualizar lista de variables</button>
         </div>
 
         <div class="card">
             <h2>Rangos de seguridad</h2>
 
             <label>Variable</label>
-            <input id="limit-variable" placeholder="temperature">
+            <select id="limit-variable"></select>
 
             <label>Mínimo</label>
             <input id="limit-min" type="number" step="any" placeholder="0">
@@ -148,13 +157,25 @@
         <div class="card">
             <h2>Nota del usuario</h2>
 
-            <label>Variable asociada opcional</label>
-            <input id="note-variable" placeholder="temperature">
+            <label>Variable asociada</label>
+            <select id="note-variable"></select>
+
+            <label>Tipo de nota</label>
+            <select id="note-type">
+                <option value="general">Nota general</option>
+                <option value="below_min">Por debajo del límite inferior</option>
+                <option value="above_max">Por encima del límite superior</option>
+            </select>
 
             <label>Nota</label>
-            <textarea id="note-message" rows="4" placeholder="Ejemplo: Se acercó una fuente de calor al sensor."></textarea>
-
+            <textarea id="note-message" rows="4" placeholder="Ejemplo: Se observó una condición fuera de rango."></textarea>
             <button onclick="saveNote()">Registrar nota</button>
+        </div>
+
+        <div class="card full-width">
+            <h2>Gráfico en tiempo real</h2>
+            <p>Se grafican únicamente las variables visibles seleccionadas.</p>
+            <canvas id="telemetry-chart" width="1000" height="320"></canvas>
         </div>
 
         <div class="card full-width">
@@ -203,12 +224,13 @@
                 <thead>
                     <tr>
                         <th>Variable</th>
+                        <th>Tipo</th>
                         <th>Nota</th>
                     </tr>
                 </thead>
                 <tbody id="notes-table">
                     <tr>
-                        <td colspan="2">Sin notas</td>
+                        <td colspan="3">Sin notas</td>
                     </tr>
                 </tbody>
             </table>
@@ -221,13 +243,17 @@
     </div>
 
     <script>
+        let latestVariables = [];
+        let visibleVariables = [];
+        let visibleVariablesConfigured = false;
+
         async function updateDashboard() {
             await updateStatus();
-            await updateVariables();
             await updateLimits();
             await updateLatestPacket();
             await updateRecentEvents();
             await updateNotes();
+            await updateChart();
         }
 
         async function updateStatus() {
@@ -241,28 +267,45 @@
                 `Paquetes: ${data.storage.packets_count} | Eventos: ${data.storage.events_count} | Notas: ${data.storage.notes_count || 0}`;
         }
 
-        async function updateVariables() {
+        async function loadVariableControls() {
             const variablesResponse = await fetch("/api/variables");
             const variablesData = await variablesResponse.json();
 
             const visibleResponse = await fetch("/api/visible-variables");
             const visibleData = await visibleResponse.json();
 
+            latestVariables = variablesData.variables || [];
+            visibleVariables = visibleData.variables || [];
+            visibleVariablesConfigured = visibleData.configured || false;
+
+            updateVariableCheckboxes();
+            updateVariableSelects();
+        }
+
+        function getCurrentSelectedVariables() {
+            if (!visibleVariablesConfigured) {
+                return latestVariables;
+            }
+
+            return visibleVariables;
+        }
+
+        function updateVariableCheckboxes() {
             const container = document.getElementById("variables-list");
             container.innerHTML = "";
 
-            const visibleSet = new Set(visibleData.variables || []);
-
-            if (variablesData.count === 0) {
+            if (latestVariables.length === 0) {
                 container.innerText = "Aún no hay variables recibidas.";
                 return;
             }
 
-            for (const variable of variablesData.variables) {
+            const selectedSet = new Set(getCurrentSelectedVariables());
+
+            for (const variable of latestVariables) {
                 const label = document.createElement("label");
                 label.className = "checkbox-item";
 
-                const checked = visibleSet.size === 0 || visibleSet.has(variable);
+                const checked = selectedSet.has(variable);
 
                 label.innerHTML = `
                     <input type="checkbox" value="${variable}" ${checked ? "checked" : ""}>
@@ -270,6 +313,47 @@
                 `;
 
                 container.appendChild(label);
+            }
+        }
+
+        function updateVariableSelects() {
+            const selectedVariables = getCurrentSelectedVariables();
+
+            const limitSelect = document.getElementById("limit-variable");
+            const noteSelect = document.getElementById("note-variable");
+
+            const previousLimitVariable = limitSelect.value;
+            const previousNoteVariable = noteSelect.value;
+
+            limitSelect.innerHTML = "";
+            noteSelect.innerHTML = "";
+
+            if (selectedVariables.length === 0) {
+                limitSelect.innerHTML = `<option value="">No hay variables seleccionadas</option>`;
+                noteSelect.innerHTML = `<option value="">Nota general</option>`;
+                return;
+            }
+
+            noteSelect.innerHTML = `<option value="">Nota general</option>`;
+
+            for (const variable of selectedVariables) {
+                const limitOption = document.createElement("option");
+                limitOption.value = variable;
+                limitOption.textContent = variable;
+                limitSelect.appendChild(limitOption);
+
+                const noteOption = document.createElement("option");
+                noteOption.value = variable;
+                noteOption.textContent = variable;
+                noteSelect.appendChild(noteOption);
+            }
+
+            if (selectedVariables.includes(previousLimitVariable)) {
+                limitSelect.value = previousLimitVariable;
+            }
+
+            if (previousNoteVariable === "" || selectedVariables.includes(previousNoteVariable)) {
+                noteSelect.value = previousNoteVariable;
             }
         }
 
@@ -285,7 +369,7 @@
                 }
             }
 
-            await fetch("/api/visible-variables", {
+            const response = await fetch("/api/visible-variables", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -295,7 +379,16 @@
                 }),
             });
 
+            const data = await response.json();
+
+            visibleVariables = data.variables || [];
+            visibleVariablesConfigured = true;
+
+            updateVariableCheckboxes();
+            updateVariableSelects();
+
             await updateLatestPacket();
+            await updateChart();
         }
 
         async function updateLimits() {
@@ -310,6 +403,11 @@
             const variable = document.getElementById("limit-variable").value;
             const minValue = document.getElementById("limit-min").value;
             const maxValue = document.getElementById("limit-max").value;
+
+            if (!variable) {
+                alert("Selecciona una variable válida.");
+                return;
+            }
 
             const payload = {
                 variable: variable,
@@ -385,6 +483,115 @@
             }
         }
 
+        async function updateChart() {
+            const response = await fetch("/api/recent-packets?limit=40");
+            const data = await response.json();
+
+            drawTelemetryChart(data.packets || []);
+        }
+
+        function drawTelemetryChart(packets) {
+            const canvas = document.getElementById("telemetry-chart");
+            const ctx = canvas.getContext("2d");
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const width = canvas.width;
+            const height = canvas.height;
+            const padding = 45;
+
+            ctx.strokeStyle = "#cccccc";
+            ctx.lineWidth = 1;
+
+            ctx.beginPath();
+            ctx.moveTo(padding, padding);
+            ctx.lineTo(padding, height - padding);
+            ctx.lineTo(width - padding, height - padding);
+            ctx.stroke();
+
+            const series = {};
+
+            for (let i = 0; i < packets.length; i++) {
+                const packet = packets[i];
+
+                for (const measurement of packet.measurements || []) {
+                    if (!series[measurement.variable]) {
+                        series[measurement.variable] = [];
+                    }
+
+                    series[measurement.variable].push({
+                        index: i,
+                        value: Number(measurement.value),
+                    });
+                }
+            }
+
+            const variables = Object.keys(series);
+
+            if (variables.length === 0) {
+                ctx.fillStyle = "#555555";
+                ctx.fillText("No hay datos para graficar.", padding, padding + 20);
+                return;
+            }
+
+            let minValue = Infinity;
+            let maxValue = -Infinity;
+
+            for (const variable of variables) {
+                for (const point of series[variable]) {
+                    minValue = Math.min(minValue, point.value);
+                    maxValue = Math.max(maxValue, point.value);
+                }
+            }
+
+            if (minValue === maxValue) {
+                minValue -= 1;
+                maxValue += 1;
+            }
+
+            const usableWidth = width - 2 * padding;
+            const usableHeight = height - 2 * padding;
+            const maxIndex = Math.max(packets.length - 1, 1);
+
+            const colors = [
+                "#1f77b4",
+                "#ff7f0e",
+                "#2ca02c",
+                "#d62728",
+                "#9467bd",
+                "#8c564b",
+            ];
+
+            variables.forEach((variable, variableIndex) => {
+                const points = series[variable];
+                const color = colors[variableIndex % colors.length];
+
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+
+                points.forEach((point, pointIndex) => {
+                    const x = padding + (point.index / maxIndex) * usableWidth;
+                    const y = height - padding - ((point.value - minValue) / (maxValue - minValue)) * usableHeight;
+
+                    if (pointIndex === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+
+                ctx.stroke();
+
+                ctx.fillStyle = color;
+                ctx.fillText(variable, padding + 10, padding + 15 + variableIndex * 18);
+            });
+
+            ctx.fillStyle = "#555555";
+            ctx.fillText(maxValue.toFixed(2), 5, padding + 5);
+            ctx.fillText(minValue.toFixed(2), 5, height - padding);
+        }
+
         async function updateRecentEvents() {
             const response = await fetch("/api/recent-events?limit=10");
             const data = await response.json();
@@ -418,7 +625,13 @@
 
         async function saveNote() {
             const variable = document.getElementById("note-variable").value;
+            const noteType = document.getElementById("note-type").value;
             const message = document.getElementById("note-message").value;
+
+            if (!message.trim()) {
+                alert("La nota no puede estar vacía.");
+                return;
+            }
 
             await fetch("/api/notes", {
                 method: "POST",
@@ -427,6 +640,7 @@
                 },
                 body: JSON.stringify({
                     variable: variable || null,
+                    note_type: noteType,
                     message: message,
                 }),
             });
@@ -435,6 +649,19 @@
 
             await updateNotes();
         }
+
+        function formatNoteType(noteType) {
+            if (noteType === "below_min") {
+                return "Por debajo del límite inferior";
+            }
+
+            if (noteType === "above_max") {
+                return "Por encima del límite superior";
+            }
+
+            return "Nota general";
+        }
+
 
         async function updateNotes() {
             const response = await fetch("/api/notes");
@@ -446,7 +673,7 @@
             if (data.count === 0) {
                 table.innerHTML = `
                     <tr>
-                        <td colspan="2">Sin notas</td>
+                        <td colspan="3">Sin notas</td>
                     </tr>
                 `;
 
@@ -457,9 +684,10 @@
                 const row = document.createElement("tr");
 
                 row.innerHTML = `
-                    <td>${note.variable || "-"}</td>
-                    <td>${note.message}</td>
-                `;
+                <td>${note.variable || "-"}</td>
+                <td>${formatNoteType(note.note_type)}</td>
+                <td>${note.message}</td>
+            `;
 
                 table.appendChild(row);
             }
@@ -473,9 +701,15 @@
             await updateDashboard();
         }
 
-        updateDashboard();
+        async function initializeDashboard() {
+            await loadVariableControls();
+            await updateDashboard();
 
-        setInterval(updateDashboard, 1000);
+            setInterval(updateDashboard, 1000);
+            setInterval(loadVariableControls, 10000);
+        }
+
+        initializeDashboard();
     </script>
 </body>
 </html>

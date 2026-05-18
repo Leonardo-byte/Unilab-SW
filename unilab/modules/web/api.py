@@ -105,7 +105,7 @@ def create_app(
         packet_dict = _to_dict(packet)
         packet_dict = _filter_packet_dict(
             packet_dict=packet_dict,
-            visible_variables=current_storage.get_visible_variables(),
+            visible_variables=current_storage.get_visible_variables_filter(),
         )
 
         return {
@@ -122,7 +122,7 @@ def create_app(
         current_storage: MemoryStorage = app.state.storage
         packets = current_storage.get_recent_packets(limit=limit)
 
-        visible_variables = current_storage.get_visible_variables()
+        visible_variables = current_storage.get_visible_variables_filter()
 
         filtered_packets = [
             _filter_packet_dict(
@@ -191,6 +191,7 @@ def create_app(
         current_storage: MemoryStorage = app.state.storage
 
         return {
+            "configured": current_storage.is_visible_variables_configured(),
             "variables": current_storage.get_visible_variables(),
         }
 
@@ -281,10 +282,12 @@ def create_app(
 
         message = payload.get("message")
         variable = payload.get("variable")
+        note_type = payload.get("note_type", "general")
 
         note = current_storage.add_note(
             message=message,
             variable=variable,
+            note_type=note_type,
         )
 
         return {
@@ -298,14 +301,17 @@ def create_app(
 
 def _filter_packet_dict(
     packet_dict: dict[str, Any],
-    visible_variables: list[str],
+    visible_variables: list[str] | None,
 ) -> dict[str, Any]:
     """
     Filtra las mediciones de un paquete según las variables visibles.
 
-    Si no hay variables visibles configuradas, retorna el paquete completo.
+    Reglas:
+    - None: el usuario todavía no configuró nada, se muestran todas.
+    - []: el usuario deseleccionó todas, no se muestra ninguna.
+    - ["temperature", "ph"]&#58; se muestran solo esas variables.
     """
-    if not visible_variables:
+    if visible_variables is None:
         return packet_dict
 
     visible_set = set(visible_variables)

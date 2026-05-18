@@ -55,7 +55,7 @@ class MemoryStorage:
         self._packets: list[TelemetryPacket] = []
         self._events: list[Event] = []
 
-        self._visible_variables: set[str] = set()
+        self._visible_variables: set[str] | None = None
         self._notes: list[dict[str, Any]] = []
 
     def save_packet(self, packet: TelemetryPacket) -> None:
@@ -167,6 +167,7 @@ class MemoryStorage:
             "max_events": self.max_events,
             "notes_count": len(self._notes),
             "visible_variables": self.get_visible_variables(),
+            "visible_variables_configured": self.is_visible_variables_configured(),
         }
     
 
@@ -174,7 +175,8 @@ class MemoryStorage:
         """
         Define qué variables desea visualizar el usuario.
 
-        Si la lista está vacía, se interpreta como mostrar todas las variables.
+        Si se guarda una lista vacía, se interpreta como no mostrar ninguna variable.
+        Si nunca se configuró esta opción, UniLab muestra todas las variables.
         """
         self._visible_variables = {
             variable for variable in variables
@@ -185,22 +187,63 @@ class MemoryStorage:
     def get_visible_variables(self) -> list[str]:
         """
         Retorna las variables seleccionadas por el usuario.
+
+        Si todavía no se configuró la selección, retorna una lista vacía.
         """
+        if self._visible_variables is None:
+            return []
+
         return sorted(self._visible_variables)
 
 
-    def add_note(self, message: str, variable: str | None = None) -> dict[str, Any]:
+    def get_visible_variables_filter(self) -> list[str] | None:
+        """
+        Retorna el filtro real de variables visibles.
+
+        None significa que el usuario todavía no configuró nada,
+        por lo tanto se deben mostrar todas las variables.
+
+        Lista vacía significa que el usuario deseleccionó todas las variables.
+        """
+        if self._visible_variables is None:
+            return None
+
+        return sorted(self._visible_variables)
+
+
+    def is_visible_variables_configured(self) -> bool:
+        """
+        Indica si el usuario ya configuró manualmente las variables visibles.
+        """
+        return self._visible_variables is not None
+
+
+    def add_note(
+    self,
+    message: str,
+    variable: str | None = None,
+    note_type: str = "general",) -> dict[str, Any]:
         """
         Registra una nota manual del usuario.
 
-        La nota puede estar asociada a una variable o ser una nota general.
+        La nota puede ser general o estar asociada a una variable y a una condición.
         """
         if not message or not message.strip():
             raise ValueError("La nota no puede estar vacía.")
 
+        allowed_note_types = {
+            "general",
+            "below_min",
+            "above_max",
+        }
+
+        if note_type not in allowed_note_types:
+            raise ValueError("El tipo de nota no es válido.")
+
         note = {
             "message": message.strip(),
             "variable": variable,
+            "note_type": note_type,
         }
 
         self._notes.append(note)
