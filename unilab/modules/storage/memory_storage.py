@@ -55,6 +55,9 @@ class MemoryStorage:
         self._packets: list[TelemetryPacket] = []
         self._events: list[Event] = []
 
+        self._visible_variables: set[str] = set()
+        self._notes: list[dict[str, Any]] = []
+
     def save_packet(self, packet: TelemetryPacket) -> None:
         """
         Guarda un paquete de telemetría en memoria.
@@ -150,6 +153,7 @@ class MemoryStorage:
         """
         self._packets.clear()
         self._events.clear()
+        self._notes.clear()
 
     def get_status(self) -> dict[str, Any]:
         """
@@ -161,4 +165,51 @@ class MemoryStorage:
             "events_count": len(self._events),
             "max_packets": self.max_packets,
             "max_events": self.max_events,
+            "notes_count": len(self._notes),
+            "visible_variables": self.get_visible_variables(),
         }
+    
+
+    def set_visible_variables(self, variables: list[str]) -> None:
+        """
+        Define qué variables desea visualizar el usuario.
+
+        Si la lista está vacía, se interpreta como mostrar todas las variables.
+        """
+        self._visible_variables = {
+            variable for variable in variables
+            if variable and variable.strip()
+        }
+
+
+    def get_visible_variables(self) -> list[str]:
+        """
+        Retorna las variables seleccionadas por el usuario.
+        """
+        return sorted(self._visible_variables)
+
+
+    def add_note(self, message: str, variable: str | None = None) -> dict[str, Any]:
+        """
+        Registra una nota manual del usuario.
+
+        La nota puede estar asociada a una variable o ser una nota general.
+        """
+        if not message or not message.strip():
+            raise ValueError("La nota no puede estar vacía.")
+
+        note = {
+            "message": message.strip(),
+            "variable": variable,
+        }
+
+        self._notes.append(note)
+
+        return note
+
+
+    def get_notes(self) -> list[dict[str, Any]]:
+        """
+        Retorna todas las notas registradas.
+        """
+        return self._notes

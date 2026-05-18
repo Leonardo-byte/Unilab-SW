@@ -198,7 +198,7 @@ def main() -> None:
 
     acquisition_thread.start()
 
-    app = create_app(storage=storage)
+    app = create_app(storage=storage,safety=safety,)
 
     print_demo_info()
 

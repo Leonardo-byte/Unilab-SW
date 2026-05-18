@@ -164,3 +164,83 @@ def test_api_clear_removes_packets_and_events():
     assert data["available"] is False
     assert data["packet"] is None
 
+
+
+def test_api_visible_variables_can_be_updated():
+    """
+    Verifica que el usuario pueda seleccionar variables visibles.
+    """
+    storage = MemoryStorage()
+    app = create_app(storage=storage)
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/visible-variables",
+        json={
+            "variables": ["temperature", "ph"],
+        },
+    )
+
+    data = response.json()
+
+    assert response.status_code == 200
+    assert data["variables"] == ["ph", "temperature"]
+
+    response = client.get("/api/visible-variables")
+    data = response.json()
+
+    assert data["variables"] == ["ph", "temperature"]
+
+
+def test_api_safety_limits_can_be_updated():
+    """
+    Verifica que el usuario pueda modificar rangos de seguridad.
+    """
+    storage = MemoryStorage()
+    safety = SafetyManager()
+
+    app = create_app(storage=storage, safety=safety)
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/safety/limits",
+        json={
+            "variable": "temperature",
+            "min": 10,
+            "max": 35,
+        },
+    )
+
+    data = response.json()
+
+    assert response.status_code == 200
+    assert data["limits"]["temperature"]["min"] == 10
+    assert data["limits"]["temperature"]["max"] == 35
+
+
+def test_api_notes_can_be_created():
+    """
+    Verifica que el usuario pueda registrar notas.
+    """
+    storage = MemoryStorage()
+    app = create_app(storage=storage)
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/notes",
+        json={
+            "variable": "temperature",
+            "message": "Se acercó una fuente de calor al sensor.",
+        },
+    )
+
+    data = response.json()
+
+    assert response.status_code == 200
+    assert data["note"]["variable"] == "temperature"
+    assert data["note"]["message"] == "Se acercó una fuente de calor al sensor."
+
+    response = client.get("/api/notes")
+    data = response.json()
+
+    assert data["count"] == 1

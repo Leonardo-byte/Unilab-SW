@@ -25,7 +25,8 @@ FastAPI / Dashboard
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import Body, FastAPI, Request
+from unilab.modules.safety import SafetyManager
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
@@ -36,8 +37,11 @@ TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
-
-def create_app(storage: MemoryStorage | None = None) -> FastAPI:
+def create_app(
+    storage: MemoryStorage | None = None,
+    safety: SafetyManager | None = None,
+) -> FastAPI:
+    
     """
     Crea la aplicación FastAPI de UniLab.
 
@@ -57,6 +61,7 @@ def create_app(storage: MemoryStorage | None = None) -> FastAPI:
     )
 
     app.state.storage = storage or MemoryStorage()
+    app.state.safety = safety or SafetyManager()
 
     @app.get("/", response_class=HTMLResponse)
     def dashboard(request: Request) -> HTMLResponse:
@@ -97,10 +102,17 @@ def create_app(storage: MemoryStorage | None = None) -> FastAPI:
                 "packet": None,
             }
 
+        packet_dict = _to_dict(packet)
+        packet_dict = _filter_packet_dict(
+            packet_dict=packet_dict,
+            visible_variables=current_storage.get_visible_variables(),
+        )
+
         return {
             "available": True,
-            "packet": _to_dict(packet),
+            "packet": packet_dict,
         }
+    
 
     @app.get("/api/recent-packets")
     def get_recent_packets(limit: int = 10) -> dict[str, Any]:
@@ -110,9 +122,19 @@ def create_app(storage: MemoryStorage | None = None) -> FastAPI:
         current_storage: MemoryStorage = app.state.storage
         packets = current_storage.get_recent_packets(limit=limit)
 
+        visible_variables = current_storage.get_visible_variables()
+
+        filtered_packets = [
+            _filter_packet_dict(
+                packet_dict=_to_dict(packet),
+                visible_variables=visible_variables,
+            )
+            for packet in packets
+        ]
+
         return {
-            "count": len(packets),
-            "packets": [_to_dict(packet) for packet in packets],
+            "count": len(filtered_packets),
+            "packets": filtered_packets,
         }
 
     @app.get("/api/recent-events")
@@ -140,8 +162,161 @@ def create_app(storage: MemoryStorage | None = None) -> FastAPI:
             "message": "Almacenamiento limpiado correctamente.",
             "storage": current_storage.get_status(),
         }
+    
+    @app.get("/api/variables")
+    def get_variables() -> dict[str, Any]:
+        """
+        Retorna las variables disponibles según la telemetría recibida.
+        """
+        current_storage: MemoryStorage = app.state.storage
+        packets = current_storage.get_recent_packets(limit=100)
+
+        variables: set[str] = set()
+
+        for packet in packets:
+            for measurement in packet.measurements:
+                variables.add(measurement.variable)
+
+        return {
+            "count": len(variables),
+            "variables": sorted(variables),
+        }
+
+
+    @app.get("/api/visible-variables")
+    def get_visible_variables() -> dict[str, Any]:
+        """
+        Retorna las variables seleccionadas por el usuario para visualizar.
+        """
+        current_storage: MemoryStorage = app.state.storage
+
+        return {
+            "variables": current_storage.get_visible_variables(),
+        }
+
+
+    @app.post("/api/visible-variables")
+    def set_visible_variables(
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        """
+        Actualiza las variables visibles seleccionadas por el usuario.
+        """
+        current_storage: MemoryStorage = app.state.storage
+        variables = payload.get("variables", [])
+
+        if not isinstance(variables, list):
+            raise ValueError("El campo 'variables' debe ser una lista.")
+
+        current_storage.set_visible_variables(variables)
+
+        return {
+            "message": "Variables visibles actualizadas correctamente.",
+            "variables": current_storage.get_visible_variables(),
+        }
+
+
+    @app.get("/api/safety/limits")
+    def get_safety_limits() -> dict[str, Any]:
+        """
+        Retorna los rangos de seguridad configurados.
+        """
+        current_safety: SafetyManager = app.state.safety
+
+        return {
+            "limits": current_safety.get_limits(),
+        }
+
+
+    @app.post("/api/safety/limits")
+    def set_safety_limit(
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        """
+        Actualiza el rango de seguridad de una variable.
+        """
+        current_safety: SafetyManager = app.state.safety
+
+        variable = payload.get("variable")
+        min_value = payload.get("min")
+        max_value = payload.get("max")
+
+        if not variable:
+            raise ValueError("El campo 'variable' es obligatorio.")
+
+        current_safety.set_limit(
+            measurement_name=variable,
+            min_value=min_value,
+            max_value=max_value,
+        )
+
+        return {
+            "message": "Límite actualizado correctamente.",
+            "limits": current_safety.get_limits(),
+        }
+
+
+    @app.get("/api/notes")
+    def get_notes() -> dict[str, Any]:
+        """
+        Retorna las notas registradas por el usuario.
+        """
+        current_storage: MemoryStorage = app.state.storage
+        notes = current_storage.get_notes()
+
+        return {
+            "count": len(notes),
+            "notes": notes,
+        }
+
+
+    @app.post("/api/notes")
+    def add_note(
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        """
+        Registra una nota manual del usuario.
+        """
+        current_storage: MemoryStorage = app.state.storage
+
+        message = payload.get("message")
+        variable = payload.get("variable")
+
+        note = current_storage.add_note(
+            message=message,
+            variable=variable,
+        )
+
+        return {
+            "message": "Nota registrada correctamente.",
+            "note": note,
+        }
+
 
     return app
+
+
+def _filter_packet_dict(
+    packet_dict: dict[str, Any],
+    visible_variables: list[str],
+) -> dict[str, Any]:
+    """
+    Filtra las mediciones de un paquete según las variables visibles.
+
+    Si no hay variables visibles configuradas, retorna el paquete completo.
+    """
+    if not visible_variables:
+        return packet_dict
+
+    visible_set = set(visible_variables)
+
+    packet_dict["measurements"] = [
+        measurement
+        for measurement in packet_dict.get("measurements", [])
+        if measurement.get("variable") in visible_set
+    ]
+
+    return packet_dict
 
 
 def _to_dict(data: Any) -> dict[str, Any]:

@@ -34,19 +34,8 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
         }
 
-        .card h2 {
-            margin-top: 0;
-            font-size: 20px;
-        }
-
-        .status-ok {
-            color: green;
-            font-weight: bold;
-        }
-
-        .status-warning {
-            color: darkorange;
-            font-weight: bold;
+        .full-width {
+            grid-column: 1 / 3;
         }
 
         table {
@@ -65,15 +54,12 @@
             background-color: #eeeeee;
         }
 
-        pre {
-            background-color: #eeeeee;
-            padding: 12px;
-            border-radius: 8px;
-            overflow-x: auto;
-        }
-
-        .full-width {
-            grid-column: 1 / 3;
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            margin-top: 6px;
+            margin-bottom: 10px;
+            box-sizing: border-box;
         }
 
         button {
@@ -83,10 +69,38 @@
             background-color: #222;
             color: white;
             cursor: pointer;
+            margin-top: 5px;
         }
 
         button:hover {
             background-color: #444;
+        }
+
+        .status-ok {
+            color: green;
+            font-weight: bold;
+        }
+
+        .status-warning {
+            color: darkorange;
+            font-weight: bold;
+        }
+
+        .checkbox-item {
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .checkbox-item input {
+            width: auto;
+            margin-right: 6px;
+        }
+
+        pre {
+            background-color: #eeeeee;
+            padding: 12px;
+            border-radius: 8px;
+            overflow-x: auto;
         }
     </style>
 </head>
@@ -94,25 +108,64 @@
 <body>
     <h1>UniLab Dashboard</h1>
     <p class="subtitle">
-        Dashboard mínimo para visualizar telemetría recibida desde un módulo de adquisición.
+        Supervisión de telemetría, variables visibles, rangos de seguridad y notas.
     </p>
 
     <div class="container">
         <div class="card">
-            <h2>Estado de la API</h2>
+            <h2>Estado</h2>
             <p id="api-status">Cargando...</p>
             <p id="storage-status">Cargando...</p>
             <button onclick="clearStorage()">Limpiar datos</button>
         </div>
 
         <div class="card">
+            <h2>Variables visibles</h2>
+            <p>Selecciona qué variables deseas visualizar.</p>
+            <div id="variables-list">
+                Cargando variables...
+            </div>
+            <button onclick="saveVisibleVariables()">Guardar selección</button>
+        </div>
+
+        <div class="card">
+            <h2>Rangos de seguridad</h2>
+
+            <label>Variable</label>
+            <input id="limit-variable" placeholder="temperature">
+
+            <label>Mínimo</label>
+            <input id="limit-min" type="number" step="any" placeholder="0">
+
+            <label>Máximo</label>
+            <input id="limit-max" type="number" step="any" placeholder="60">
+
+            <button onclick="saveSafetyLimit()">Guardar rango</button>
+
+            <pre id="limits-json">{}</pre>
+        </div>
+
+        <div class="card">
+            <h2>Nota del usuario</h2>
+
+            <label>Variable asociada opcional</label>
+            <input id="note-variable" placeholder="temperature">
+
+            <label>Nota</label>
+            <textarea id="note-message" rows="4" placeholder="Ejemplo: Se acercó una fuente de calor al sensor."></textarea>
+
+            <button onclick="saveNote()">Registrar nota</button>
+        </div>
+
+        <div class="card full-width">
             <h2>Último paquete</h2>
             <p id="packet-status">Cargando...</p>
             <p><strong>Fuente:</strong> <span id="packet-source">-</span></p>
+
             <table>
                 <thead>
                     <tr>
-                        <th>Medición</th>
+                        <th>Variable</th>
                         <th>Valor</th>
                         <th>Unidad</th>
                     </tr>
@@ -145,6 +198,23 @@
         </div>
 
         <div class="card full-width">
+            <h2>Notas registradas</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Variable</th>
+                        <th>Nota</th>
+                    </tr>
+                </thead>
+                <tbody id="notes-table">
+                    <tr>
+                        <td colspan="2">Sin notas</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card full-width">
             <h2>JSON del último paquete</h2>
             <pre id="raw-packet-json">{}</pre>
         </div>
@@ -153,8 +223,11 @@
     <script>
         async function updateDashboard() {
             await updateStatus();
+            await updateVariables();
+            await updateLimits();
             await updateLatestPacket();
             await updateRecentEvents();
+            await updateNotes();
         }
 
         async function updateStatus() {
@@ -165,7 +238,94 @@
                 `API: <span class="status-ok">${data.api}</span>`;
 
             document.getElementById("storage-status").innerText =
-                `Paquetes: ${data.storage.packets_count} | Eventos: ${data.storage.events_count}`;
+                `Paquetes: ${data.storage.packets_count} | Eventos: ${data.storage.events_count} | Notas: ${data.storage.notes_count || 0}`;
+        }
+
+        async function updateVariables() {
+            const variablesResponse = await fetch("/api/variables");
+            const variablesData = await variablesResponse.json();
+
+            const visibleResponse = await fetch("/api/visible-variables");
+            const visibleData = await visibleResponse.json();
+
+            const container = document.getElementById("variables-list");
+            container.innerHTML = "";
+
+            const visibleSet = new Set(visibleData.variables || []);
+
+            if (variablesData.count === 0) {
+                container.innerText = "Aún no hay variables recibidas.";
+                return;
+            }
+
+            for (const variable of variablesData.variables) {
+                const label = document.createElement("label");
+                label.className = "checkbox-item";
+
+                const checked = visibleSet.size === 0 || visibleSet.has(variable);
+
+                label.innerHTML = `
+                    <input type="checkbox" value="${variable}" ${checked ? "checked" : ""}>
+                    ${variable}
+                `;
+
+                container.appendChild(label);
+            }
+        }
+
+        async function saveVisibleVariables() {
+            const container = document.getElementById("variables-list");
+            const checkboxes = container.querySelectorAll("input[type='checkbox']");
+
+            const variables = [];
+
+            for (const checkbox of checkboxes) {
+                if (checkbox.checked) {
+                    variables.push(checkbox.value);
+                }
+            }
+
+            await fetch("/api/visible-variables", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    variables: variables,
+                }),
+            });
+
+            await updateLatestPacket();
+        }
+
+        async function updateLimits() {
+            const response = await fetch("/api/safety/limits");
+            const data = await response.json();
+
+            document.getElementById("limits-json").innerText =
+                JSON.stringify(data.limits, null, 2);
+        }
+
+        async function saveSafetyLimit() {
+            const variable = document.getElementById("limit-variable").value;
+            const minValue = document.getElementById("limit-min").value;
+            const maxValue = document.getElementById("limit-max").value;
+
+            const payload = {
+                variable: variable,
+                min: minValue === "" ? null : Number(minValue),
+                max: maxValue === "" ? null : Number(maxValue),
+            };
+
+            await fetch("/api/safety/limits", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            });
+
+            await updateLimits();
         }
 
         async function updateLatestPacket() {
@@ -202,6 +362,15 @@
 
             packetSource.innerText = packet.source || "-";
             rawJson.innerText = JSON.stringify(packet, null, 2);
+
+            if (packet.measurements.length === 0) {
+                table.innerHTML = `
+                    <tr>
+                        <td colspan="3">No hay variables visibles seleccionadas</td>
+                    </tr>
+                `;
+                return;
+            }
 
             for (const measurement of packet.measurements) {
                 const row = document.createElement("tr");
@@ -247,6 +416,55 @@
             }
         }
 
+        async function saveNote() {
+            const variable = document.getElementById("note-variable").value;
+            const message = document.getElementById("note-message").value;
+
+            await fetch("/api/notes", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    variable: variable || null,
+                    message: message,
+                }),
+            });
+
+            document.getElementById("note-message").value = "";
+
+            await updateNotes();
+        }
+
+        async function updateNotes() {
+            const response = await fetch("/api/notes");
+            const data = await response.json();
+
+            const table = document.getElementById("notes-table");
+            table.innerHTML = "";
+
+            if (data.count === 0) {
+                table.innerHTML = `
+                    <tr>
+                        <td colspan="2">Sin notas</td>
+                    </tr>
+                `;
+
+                return;
+            }
+
+            for (const note of data.notes) {
+                const row = document.createElement("tr");
+
+                row.innerHTML = `
+                    <td>${note.variable || "-"}</td>
+                    <td>${note.message}</td>
+                `;
+
+                table.appendChild(row);
+            }
+        }
+
         async function clearStorage() {
             await fetch("/api/clear", {
                 method: "POST"
@@ -261,4 +479,3 @@
     </script>
 </body>
 </html>
-
