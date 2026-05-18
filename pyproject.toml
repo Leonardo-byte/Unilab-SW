@@ -1,0 +1,9 @@
+[project]
+name = "unilab"
+version = "0.1.0"
+description = "Software modular para adquisición, telemetría y automatización de laboratorio"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
