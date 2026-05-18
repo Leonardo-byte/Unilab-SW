@@ -27,15 +27,9 @@ from typing import Any
 
 from fastapi import Body, FastAPI, Request
 from unilab.modules.safety import SafetyManager
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 
 from unilab.modules.storage import MemoryStorage
 
-
-TEMPLATES_DIR = Path(__file__).parent / "templates"
-
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 def create_app(
     storage: MemoryStorage | None = None,
@@ -62,19 +56,6 @@ def create_app(
 
     app.state.storage = storage or MemoryStorage()
     app.state.safety = safety or SafetyManager()
-
-    @app.get("/", response_class=HTMLResponse)
-    def dashboard(request: Request) -> HTMLResponse:
-        """
-        Muestra el dashboard HTML principal.
-        """
-        return templates.TemplateResponse(
-            request,
-            "dashboard.html",
-            {
-                "title": "UniLab Dashboard",
-            },
-    )
 
     @app.get("/api/status")
     def get_status() -> dict[str, Any]:

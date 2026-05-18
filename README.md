@@ -41,6 +41,7 @@ tests/
 └── test_core.py
 ```
 
+
 ---
 
 ## Módulos principales
