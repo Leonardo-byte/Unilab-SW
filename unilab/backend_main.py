@@ -90,6 +90,11 @@ def acquisition_loop(unilab_app: UniLabApp) -> None:
 
             events = safety.validate_packet(packet)
 
+            storage.register_device(
+                device_id=packet.source,
+                protocol="udp",
+            )
+
             storage.save_packet(packet)
             storage.save_events(events)
 

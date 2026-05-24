@@ -282,6 +282,45 @@ def create_app(unilab_app: UniLabApp) -> FastAPI:
             "app": unilab_app.get_status(),
             "modules": unilab_app.get_modules_status(),
         }
+    
+    @app.get("/api/devices")
+    def get_devices(request: Request) -> dict[str, Any]:
+        storage = get_storage(request)
+
+        return {
+            "protocols": ["udp"],
+            "devices": storage.get_devices(),
+        }
+
+
+    @app.post("/api/devices/{device_id}/connect")
+    def connect_device(
+        device_id: str,
+        request: Request,
+    ) -> dict[str, Any]:
+        storage = get_storage(request)
+        storage.connect_device(device_id)
+
+        return {
+            "message": "Dispositivo conectado correctamente.",
+            "device_id": device_id,
+            "devices": storage.get_devices(),
+        }
+
+
+    @app.post("/api/devices/{device_id}/disconnect")
+    def disconnect_device(
+        device_id: str,
+        request: Request,
+    ) -> dict[str, Any]:
+        storage = get_storage(request)
+        storage.disconnect_device(device_id)
+
+        return {
+            "message": "Dispositivo desconectado correctamente.",
+            "device_id": device_id,
+            "devices": storage.get_devices(),
+        }
 
     return app
 

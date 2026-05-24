@@ -62,6 +62,8 @@ class MemoryStorage:
         self._events: list[Event] = []
         self._visible_variables: set[str] | None = None
         self._notes: list[dict[str, Any]] = []
+        self._devices: dict[str, dict[str, Any]] = {}
+        self._connected_devices: set[str] = set()
 
     def save_packet(self, packet: TelemetryPacket) -> None:
         """
@@ -269,3 +271,35 @@ class MemoryStorage:
     def shutdown(self) -> None:
         """Apaga el almacenamiento en memoria."""
         self._is_setup = False
+
+    def register_device(self, device_id: str, protocol: str) -> None:
+        self._devices[device_id] = {
+            "device_id": device_id,
+            "protocol": protocol,
+            "status": "detected",
+            "connected": device_id in self._connected_devices,
+        }
+
+
+    def get_devices(self) -> list[dict[str, Any]]:
+        return [
+            {
+                **device,
+                "connected": device["device_id"] in self._connected_devices,
+            }
+            for device in self._devices.values()
+        ]
+
+    def connect_device(self, device_id: str) -> None:
+        if device_id not in self._devices:
+            raise ValueError(f"Dispositivo no detectado: {device_id}")
+
+        self._connected_devices.add(device_id)
+
+
+    def disconnect_device(self, device_id: str) -> None:
+        self._connected_devices.discard(device_id)
+
+
+    def is_device_connected(self, device_id: str) -> bool:
+        return device_id in self._connected_devices
