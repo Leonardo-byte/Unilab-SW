@@ -270,6 +270,18 @@ def create_app(unilab_app: UniLabApp) -> FastAPI:
             "message": "Nota registrada correctamente.",
             "note": note,
         }
+    
+    @app.get("/api/modules")
+    def get_modules(request: Request) -> dict[str, Any]:
+        """
+        Retorna los módulos registrados en UniLabApp.
+        """
+        unilab_app = get_unilab_app(request)
+
+        return {
+            "app": unilab_app.get_status(),
+            "modules": unilab_app.get_modules_status(),
+        }
 
     return app
 
