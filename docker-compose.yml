@@ -34,6 +34,7 @@ services:
     container_name: unilab-backend
     ports:
       - "8000:8000"
+      - "5005:5005/udp"
     environment:
       - ENVIRONMENT=production
       - LOG_LEVEL=info

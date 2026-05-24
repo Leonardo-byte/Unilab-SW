@@ -1,5 +1,5 @@
 // Configuration
-const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = '';
 const REFRESH_INTERVAL = 3000; // 3 seconds
 
 // Global variables
@@ -454,14 +454,6 @@ async function clearStorage() {
     }
 }
 
-// Manual Refresh
-function refreshStatus() {
-    return refreshStatus();
-}
-
-function refreshLatestPacket() {
-    return refreshLatestPacket();
-}
 
 // Utility Functions
 function escapeHtml(text) {

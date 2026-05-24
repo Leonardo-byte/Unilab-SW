@@ -1,318 +1,686 @@
 # Arquitectura de Microservicios - UniLab-SW
 
-## Visión General
+## Visión general
 
-Este documento describe la transición del monolito de UniLab a una arquitectura de microservicios, comenzando con la separación del frontend.
+Este documento describe la primera etapa de transición de UniLab-SW hacia una arquitectura basada en microservicios. En esta fase se separó la capa de presentación del backend existente, manteniendo el backend como núcleo de aplicación y agregando servicios auxiliares para facilitar despliegue, pruebas e integración.
 
-## Fase 1: Frontend Separado ✅ COMPLETADA
+La arquitectura actual permite ejecutar UniLab mediante Docker Compose, levantando de forma coordinada:
+
+- Un microservicio de frontend servido con Nginx.
+- Un backend Python/FastAPI que conserva la lógica principal de UniLab.
+- Un servicio de almacenamiento basado en Redis, preparado para futuras extensiones.
+
+Además, el backend recibe telemetría externa mediante UDP, por ejemplo desde un ESP32, y expone dicha información al dashboard mediante endpoints HTTP.
+
+---
+
+## Fase 1: Frontend separado
+
+**Estado:** completada.
 
 ### Objetivo
-Independizar la capa de presentación del backend, permitiendo:
-- Deployments independientes
-- Escalabilidad del frontend sin afectar el backend
-- Desarrollo paralelo de frontend y backend
-- Optimización de cada servicio según su necesidad
 
-### Componentes
+Independizar la capa de presentación del backend para permitir:
 
-```
+- Separar el ciclo de vida del frontend y del backend.
+- Facilitar el desarrollo colaborativo entre integrantes del equipo.
+- Probar cambios de interfaz sin modificar la lógica central del backend.
+- Preparar el sistema para futuras migraciones hacia servicios más especializados.
+- Ejecutar la aplicación completa mediante contenedores Docker.
+
+---
+
+## Arquitectura actual
+
+```text
 ┌─────────────────────────────────────────────────────────────┐
-│                    Cliente (Navegador)                       │
+│                    Cliente / Navegador                      │
+│                    http://localhost                         │
 └────────────────────────────┬────────────────────────────────┘
                              │ HTTP
                              ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              Nginx (Port 80) - Frontend Microservice         │
+│          Frontend Microservice - Nginx, puerto 80            │
 ├─────────────────────────────────────────────────────────────┤
-│  • Static Files (HTML, CSS, JS)                              │
-│  • Proxy a Backend (/api/*)                                  │
-│  • Cache, Compression, Health Checks                         │
-└──────────────┬────────────────────────────────────────────────┘
-               │ HTTP (internal network)
-               ▼
-┌──────────────────────────────────────────────────────────────┐
-│           FastAPI (Port 8000) - Backend Monolito            │
-├──────────────────────────────────────────────────────────────┤
-│  • /api/status          - Estado general                      │
-│  • /api/latest-packet   - Última telemetría                   │
-│  • /api/recent-packets  - Historial                           │
-│  • /api/recent-events   - Eventos                             │
-│  • /api/variables       - Variables disponibles               │
-│  • /api/visible-variables - Variables configuradas            │
-│  • /api/clear           - Limpiar datos                       │
-│  • /api/safe-limits     - Rangos de seguridad               │
-└──────────────┬────────────────────────────────────────────────┘
-               │
-               ▼
-┌──────────────────────────────────────────────────────────────┐
-│                  Redis - Storage (opcional)                  │
-├──────────────────────────────────────────────────────────────┤
-│  • Almacenamiento en caché                                    │
-│  • Sesiones de usuarios                                       │
-│  • Cola de eventos                                            │
-└──────────────────────────────────────────────────────────────┘
+│  • Sirve archivos estáticos: HTML, CSS y JavaScript          │
+│  • Expone el dashboard web                                  │
+│  • Redirige solicitudes /api/* hacia el backend              │
+│  • Incluye health check en /health                           │
+└────────────────────────────┬────────────────────────────────┘
+                             │ HTTP interno en red Docker
+                             ▼
+┌─────────────────────────────────────────────────────────────┐
+│             Backend - FastAPI/Uvicorn, puerto 8000           │
+├─────────────────────────────────────────────────────────────┤
+│  • API HTTP para el dashboard                                │
+│  • Recepción de telemetría por UDP en el puerto 5005         │
+│  • Gestión de paquetes, variables, eventos y límites         │
+│  • Integración con módulos existentes de UniLab              │
+└──────────────┬──────────────────────────────┬───────────────┘
+               │                              │
+               │ UDP externo                  │ TCP interno
+               ▼                              ▼
+┌─────────────────────────────┐     ┌─────────────────────────┐
+│ ESP32 / Simulador UDP        │     │ Redis - Storage          │
+├─────────────────────────────┤     ├─────────────────────────┤
+│ • Envía JSON por UDP         │     │ • Caché                  │
+│ • Usa Wi-Fi 2.4 GHz          │     │ • Futuras colas/eventos  │
+│ • Destino: IP_PC:5005        │     │ • Persistencia auxiliar  │
+└─────────────────────────────┘     └─────────────────────────┘
 ```
 
-### Estructura de Archivos
+---
 
+## Componentes
+
+### 1. Frontend
+
+El frontend fue separado en una carpeta propia y se ejecuta como un microservicio independiente usando Nginx.
+
+Funciones principales:
+
+- Servir el dashboard web.
+- Cargar `index.html`, `styles.css` y `app.js`.
+- Consumir la API del backend mediante rutas `/api/...`.
+- Mostrar el estado del sistema, últimos paquetes recibidos, variables y eventos.
+
+URL local:
+
+```text
+http://localhost
 ```
+
+Health check:
+
+```text
+http://localhost/health
+```
+
+### 2. Backend
+
+El backend mantiene la lógica principal de UniLab y se ejecuta mediante FastAPI/Uvicorn.
+
+Funciones principales:
+
+- Levantar la API HTTP en el puerto `8000`.
+- Recibir telemetría UDP en el puerto `5005`.
+- Procesar paquetes recibidos desde dispositivos como ESP32.
+- Entregar datos al dashboard mediante endpoints HTTP.
+
+URL local:
+
+```text
+http://localhost:8000
+```
+
+Endpoint de estado:
+
+```text
+http://localhost:8000/api/status
+```
+
+### 3. Storage
+
+Se agregó un contenedor Redis como servicio de almacenamiento auxiliar. En esta fase puede funcionar como placeholder, pero deja preparada la arquitectura para:
+
+- Caché.
+- Sesiones.
+- Cola de eventos.
+- Persistencia temporal.
+- Separación futura de responsabilidades.
+
+---
+
+## Estructura de archivos
+
+```text
 Unilab-SW/
-├── docker-compose.yml           ← Orquestación (NUEVO)
-├── Dockerfile.backend           ← Backend containerizado (NUEVO)
-├── frontend/                    ← Microservicio Frontend (NUEVO)
-│   ├── Dockerfile               ├─ Imagen del servicio
-│   ├── nginx.conf               ├─ Configuración Nginx
-│   ├── index.html               ├─ Template mejorado
-│   ├── styles.css               ├─ Estilos modernos
-│   ├── app.js                   ├─ Lógica JavaScript
-│   ├── package.json             ├─ Dependencies (Node)
-│   ├── .dockerignore            ├─ Exclusiones Docker
-│   ├── README.md                └─ Documentación
+├── docker-compose.yml           # Orquestación de servicios
+├── Dockerfile.backend           # Imagen Docker del backend
+├── frontend/                    # Microservicio de frontend
+│   ├── Dockerfile               # Imagen del frontend
+│   ├── nginx.conf               # Configuración de Nginx
+│   ├── index.html               # Vista principal del dashboard
+│   ├── styles.css               # Estilos del dashboard
+│   ├── app.js                   # Lógica del frontend
+│   ├── package.json             # Metadatos/dependencias del frontend
+│   ├── .dockerignore            # Exclusiones Docker
+│   └── README.md                # Documentación específica del frontend
 │
-├── unilab/                      ← Backend (SIN CAMBIOS)
+├── unilab/                      # Backend y módulos principales
 │   ├── config/
 │   ├── contracts/
 │   ├── core/
 │   └── modules/
 │
-├── tests/                       ← Tests (SIN CAMBIOS)
-├── pyproject.toml               ← Proyecto Python
-├── requirements.txt             ← Deps Python
+├── tests/                       # Pruebas del proyecto
+├── pyproject.toml               # Configuración del proyecto Python
+├── requirements.txt             # Dependencias Python
 └── README.md
 ```
 
-## Ventajas de la Separación
+---
 
-### 1. **Independencia de Ciclo de Vida**
-```
-Frontend:                    Backend:
-- Deploy cada cambio UI      - Deploy cada bug fix/feature backend
-- Sin esperar al backend     - Sin interrumpir frontend
-- A su propio ritmo          - Versionado independiente
-```
+## Docker Compose
 
-### 2. **Escalabilidad Selectiva**
-```
-# Si hay picos de tráfico en frontend
-docker-compose up --scale frontend=3
+La ejecución completa se realiza mediante `docker-compose.yml`.
 
-# Si backend necesita más recursos
-docker-compose up -d backend --cpus=2 --memory=2g
-```
+Fragmento importante del servicio backend:
 
-### 3. **Independencia Tecnológica**
-```
-Frontend puede migrar a:     Backend permanece en:
-- React                      - Python/FastAPI
-- Vue.js                     - O migrar a Node.js después
-- Svelte                     - O a Rust, Go, Java, etc.
-- Angular                    
+```yaml
+backend:
+  build:
+    context: .
+    dockerfile: Dockerfile.backend
+  container_name: unilab-backend
+  ports:
+    - "8000:8000"
+    - "5005:5005/udp"
 ```
 
-### 4. **Facilita Testing**
-```
-# Test frontend independiente
-docker-compose run frontend npm test
+La línea:
 
-# Test backend independiente  
-docker-compose run backend pytest
-
-# Test integración con ambos
-docker-compose up && npm run e2e
+```yaml
+- "5005:5005/udp"
 ```
 
-## Cómo Ejecutar
+es importante para que un ESP32 o un simulador externo pueda enviar datos UDP hacia el backend dentro del contenedor.
 
-### Opción 1: Con Docker Compose (RECOMENDADO)
+---
+
+## Cómo ejecutar
+
+### Ejecución recomendada con Docker Compose
+
+Desde la raíz del proyecto:
 
 ```bash
-cd Unilab-SW
+docker compose up --build
+```
 
-# Build e inicia todos los servicios
+En versiones antiguas de Docker Compose:
+
+```bash
 docker-compose up --build
-
-# El dashboard estará en http://localhost
-# Backend en http://localhost:8000
 ```
 
-### Opción 2: Backend solo (Desarrollo)
+Luego abrir:
+
+```text
+http://localhost
+```
+
+Backend:
+
+```text
+http://localhost:8000/api/status
+```
+
+Para detener los servicios:
 
 ```bash
-# Terminal 1: Backend
-cd Unilab-SW
-python -m pip install -r requirements.txt
-uvicorn unilab.core.app:app --reload
-
-# Terminal 2: Frontend (desarrollo local)
-cd Unilab-SW/frontend
-python -m http.server 8080
-# http://localhost:8080
+docker compose down
 ```
 
-## Comunicación entre Servicios
+Para reconstruir sin caché:
 
-### Dentro de Docker Compose
+```bash
+docker compose build --no-cache
+docker compose up
+```
+
+---
+
+## Verificación de servicios
+
+### Ver contenedores activos
+
+```bash
+docker compose ps
+```
+
+Se espera ver servicios similares a:
+
+```text
+unilab-frontend   running
+unilab-backend    running
+unilab-storage    running
+```
+
+### Ver logs
+
+Todos los servicios:
+
+```bash
+docker compose logs -f
+```
+
+Solo backend:
+
+```bash
+docker compose logs -f backend
+```
+
+Solo frontend:
+
+```bash
+docker compose logs -f frontend
+```
+
+Solo Redis:
+
+```bash
+docker compose logs -f storage
+```
+
+### Health checks
+
+Frontend:
+
+```bash
+curl http://localhost/health
+```
+
+Backend:
+
+```bash
+curl http://localhost:8000/api/status
+```
+
+También se puede probar desde el navegador:
+
+```text
+http://localhost/api/status
+http://localhost/api/latest-packet
+http://localhost/api/recent-packets
+```
+
+---
+
+## Comunicación entre frontend y backend
+
+El frontend debe consumir la API usando rutas relativas:
 
 ```javascript
-// Frontend habla con Backend
-const API_BASE_URL = 'http://backend:8000';
+const API_BASE_URL = "";
+```
 
-// Nginx redirecciona /api/* a backend:8000
+De esa forma, las solicitudes como:
+
+```javascript
+fetch(`${API_BASE_URL}/api/status`)
+```
+
+se resuelven como:
+
+```text
+http://localhost/api/status
+```
+
+Luego Nginx redirige internamente la solicitud hacia el backend dentro de la red Docker.
+
+Ejemplo conceptual de proxy en Nginx:
+
+```nginx
 location /api/ {
-    proxy_pass http://backend;
+    proxy_pass http://backend:8000;
 }
 ```
 
-### En Producción
+Esto evita depender de `http://localhost:8000` directamente desde el JavaScript del navegador y hace que el frontend sea más portable.
 
-```javascript
-// Usar URLs del dominio real
-const API_BASE_URL = 'https://api.tudominio.com';
+---
+
+## Prueba con ESP32
+
+El ESP32 envía paquetes JSON por UDP al backend.
+
+### Consideración importante de red
+
+El ESP32 clásico, por ejemplo el ESP32-WROOM-32, usa Wi-Fi de **2.4 GHz**. Si la red disponible está solo en 5 GHz, el ESP32 no podrá conectarse correctamente.
+
+Recomendación:
+
+- Usar una red Wi-Fi de 2.4 GHz.
+- Separar los SSID del router, por ejemplo:
+  - `MiWifi_2G`
+  - `MiWifi_5G`
+- Conectar el ESP32 siempre al SSID de 2.4 GHz.
+
+### Destino UDP
+
+Si el ESP32 está en la misma red local que la PC, debe enviar los paquetes a:
+
+```text
+IP_DE_LA_PC:5005
 ```
 
-## Próximas Fases de Migración
+Ejemplo:
 
-### Fase 2: API Gateway (Próxima)
-```
-Frontend → API Gateway → Servicios
-           (Kong/FastAPI)
-           - Routing
-           - Rate limiting
-           - Autenticación
+```text
+192.168.1.35:5005
 ```
 
-### Fase 3: Separar Servicios por Dominio
-```
-Frontend → API Gateway
-           ├── TelemetryService (Python/FastAPI)
-           ├── EventService (Node.js/Express)
-           ├── StorageService (Go/Rust)
-           └── AuthService (Java/Spring)
-```
-
-### Fase 4: Event-Driven
-```
-ESP32 → UDP → TelemetryService → Event Bus (RabbitMQ/Kafka)
-                                   ├→ Storage
-                                   ├→ Safety Manager
-                                   └→ Notification Service
-```
-
-## Monitoreo y Logging
-
-### Logs de Servicios
+Para obtener la IP local en Windows:
 
 ```bash
-# Ver logs de todos
-docker-compose logs -f
-
-# Ver logs específicos
-docker-compose logs -f frontend
-docker-compose logs -f backend
-
-# Con filtro
-docker-compose logs backend | grep ERROR
+ipconfig
 ```
 
-### Health Checks
+Buscar la dirección IPv4 del adaptador Wi-Fi.
 
-```bash
-# Frontend
-curl http://localhost/health
+---
 
-# Backend
-curl http://localhost:8000/api/status
+## Formato esperado de telemetría
 
-# Ambos
-docker-compose ps
+Un paquete típico enviado por ESP32 o por un simulador UDP puede tener la siguiente forma:
+
+```json
+{
+  "device_id": "esp32_lab_01",
+  "temperature": 25.5,
+  "humidity": 60.0,
+  "ph": 6.7,
+  "ec": 1.45
+}
 ```
 
-## Configuring Resources
+En los logs del backend se debe observar algo similar a:
 
-### docker-compose.yml
-
-```yaml
-services:
-  frontend:
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
-        reservations:
-          cpus: '0.25'
-          memory: 128M
-
-  backend:
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
+```text
+[Backend] Paquete recibido desde: esp32_lab_01
+  - temperature: 25.5 C
+  - humidity: 60.0 %
+  - ph: 6.7 pH
+  - ec: 1.45 mS/cm
 ```
 
-## Seguridad
+Si esto aparece en los logs, significa que la recepción UDP está funcionando.
 
-### CORS
+---
 
-Frontend puede estar en dominio diferente, agregar a backend:
+## Prueba con simulador UDP
+
+Si no se dispone de un ESP32, se puede probar con un script Python que envíe datos al puerto UDP `5005`.
+
+Ejemplo:
 
 ```python
-from fastapi.middleware.cors import CORSMiddleware
+import socket
+import json
+import time
+import random
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["https://tudominio.com"],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["*"],
-)
+UDP_IP = "127.0.0.1"
+UDP_PORT = 5005
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+while True:
+    data = {
+        "device_id": "esp32_test",
+        "temperature": round(25 + random.uniform(-2, 2), 2),
+        "humidity": round(60 + random.uniform(-5, 5), 2),
+        "ph": round(6.5 + random.uniform(-0.5, 0.5), 2),
+        "ec": round(1.2 + random.uniform(-0.2, 0.2), 2)
+    }
+
+    message = json.dumps(data).encode("utf-8")
+    sock.sendto(message, (UDP_IP, UDP_PORT))
+
+    print("Enviado:", data)
+    time.sleep(1)
 ```
 
-### Network Isolation
+---
+
+## Problemas encontrados durante la integración
+
+Durante las pruebas se identificaron los siguientes puntos:
+
+### 1. El backend recibía datos, pero el dashboard no actualizaba
+
+Síntoma:
+
+- En los logs del backend aparecían paquetes recibidos.
+- El dashboard se quedaba en “Conectando...”.
+
+Causa probable:
+
+- Caché del navegador usando una versión antigua de `app.js`.
+- Caché agresivo de archivos estáticos desde Nginx.
+
+Solución aplicada:
+
+- Abrir en modo incógnito para confirmar.
+- Limpiar caché del navegador.
+- Usar `Ctrl + Shift + R`.
+- En DevTools, activar `Disable cache` en la pestaña Network.
+
+Recomendación para desarrollo:
+
+```nginx
+location ~* \.(js|css)$ {
+    expires -1;
+    add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate";
+}
+
+location ~* \.(png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+    expires 1h;
+    add_header Cache-Control "public";
+}
+```
+
+### 2. ESP32 conectado a red incompatible
+
+Síntoma:
+
+- El backend no recibía datos de forma consistente.
+- El ESP32 no lograba conectarse correctamente a la red.
+
+Causa:
+
+- La red Wi-Fi usada estaba en 5 GHz.
+- El ESP32 utilizado solo soporta 2.4 GHz.
+
+Solución:
+
+- Cambiar a una red Wi-Fi de 2.4 GHz.
+- Separar los SSID de 2.4 GHz y 5 GHz si el router lo permite.
+
+### 3. Puerto UDP no expuesto en Docker
+
+Síntoma:
+
+- El backend funcionaba dentro del contenedor.
+- Pero datos externos enviados al puerto `5005` no llegaban al contenedor.
+
+Solución:
+
+Agregar al servicio `backend`:
 
 ```yaml
-networks:
-  unilab-network:
-    driver: bridge
-    # Servicios en esta network solo hablan entre ellos
+ports:
+  - "8000:8000"
+  - "5005:5005/udp"
 ```
+
+---
 
 ## Troubleshooting
 
-### Frontend no conecta con Backend
+### El frontend no abre
+
+Verificar que el contenedor esté activo:
 
 ```bash
-# Verificar conectividad dentro del contenedor
-docker-compose exec frontend curl http://backend:8000/api/status
-
-# Ver logs
-docker-compose logs backend
+docker compose ps
 ```
 
-### Puertos en uso
+Ver logs:
 
 ```bash
-# Liberar puerto 80 (si Nginx/Apache lo ocupa)
-sudo systemctl stop apache2
-sudo systemctl stop nginx
+docker compose logs -f frontend
+```
 
-# O cambiar en docker-compose.yml
+Si el puerto 80 está ocupado, cambiar:
+
+```yaml
 ports:
-  - "8080:80"  # Cambiar de 80 a 8080
+  - "80:80"
 ```
 
-### Rebuild después de cambios
+por:
+
+```yaml
+ports:
+  - "8080:80"
+```
+
+Luego abrir:
+
+```text
+http://localhost:8080
+```
+
+### El backend no responde
+
+Probar:
 
 ```bash
-# Rebuild solo frontend
-docker-compose build frontend
-
-# Rebuild todo
-docker-compose up --build
+curl http://localhost:8000/api/status
 ```
 
-## Métricas
+Ver logs:
+
+```bash
+docker compose logs -f backend
+```
+
+### El backend recibe datos, pero el dashboard no muestra nada
+
+Probar endpoints desde navegador:
+
+```text
+http://localhost/api/status
+http://localhost/api/latest-packet
+http://localhost/api/recent-packets
+```
+
+Si los endpoints muestran datos, pero el dashboard no:
+
+- Limpiar caché.
+- Abrir en incógnito.
+- Revisar la consola del navegador con `F12`.
+- Verificar errores en `app.js`.
+- Reconstruir frontend sin caché:
+
+```bash
+docker compose build --no-cache frontend
+docker compose up
+```
+
+### El ESP32 no envía datos
+
+Verificar:
+
+- Que esté conectado a Wi-Fi 2.4 GHz.
+- Que la IP destino sea la IP local de la PC.
+- Que el puerto destino sea `5005`.
+- Que Docker exponga `5005/udp`.
+- Que PC y ESP32 estén en la misma red local.
+
+### No usar `run_esp32_demo.py` junto con Docker Compose
+
+Si se ejecuta la arquitectura con Docker Compose, no es necesario correr `run_esp32_demo.py`, porque el backend ya está activo dentro del contenedor.
+
+Usar `run_esp32_demo.py` solo para pruebas locales sin Docker.
+
+---
+
+## Ventajas de la separación
+
+### Independencia de ciclo de vida
+
+```text
+Frontend:
+- Cambios visuales independientes
+- Iteración rápida de UI
+- Posible migración futura a React, Vue, Svelte o Angular
+
+Backend:
+- Mantiene lógica de adquisición y procesamiento
+- Expone API estable para el dashboard
+- Puede evolucionar hacia servicios especializados
+```
+
+### Escalabilidad selectiva
+
+```bash
+docker compose up --scale frontend=3
+```
+
+En fases futuras, el backend también puede dividirse por dominio:
+
+- Servicio de telemetría.
+- Servicio de eventos.
+- Servicio de almacenamiento.
+- Servicio de autenticación.
+- Servicio de notificaciones.
+
+### Desarrollo colaborativo
+
+La separación permite que un integrante trabaje en el frontend sin interferir directamente con el desarrollo del backend, siempre que se respete la interfaz de API.
+
+---
+
+## Próximas fases de migración
+
+### Fase 2: API Gateway
+
+```text
+Frontend → API Gateway → Backend / Servicios
+```
+
+Funciones esperadas:
+
+- Enrutamiento centralizado.
+- Autenticación.
+- Rate limiting.
+- Manejo de versiones de API.
+- Registro de solicitudes.
+
+### Fase 3: Separación por dominio
+
+```text
+Frontend → API Gateway
+           ├── TelemetryService
+           ├── EventService
+           ├── StorageService
+           ├── SafetyService
+           └── AuthService
+```
+
+### Fase 4: Arquitectura orientada a eventos
+
+```text
+ESP32 → UDP → TelemetryService → Event Bus
+                                   ├── Storage
+                                   ├── Safety Manager
+                                   ├── Dashboard
+                                   └── Notification Service
+```
+
+Tecnologías posibles:
+
+- RabbitMQ.
+- Kafka.
+- Redis Streams.
+- MQTT para integración IoT.
+
+---
+
+## Monitoreo y métricas
 
 Ver consumo de recursos:
 
@@ -320,27 +688,36 @@ Ver consumo de recursos:
 docker stats
 ```
 
-Esperado:
+Valores esperados aproximados:
+
+```text
+CONTAINER         CPU %   MEM USAGE
+unilab-frontend   <1%     ~50 MB
+unilab-backend    5-15%   ~200-400 MB
+unilab-storage    <1%     ~100 MB
 ```
-CONTAINER         CPU %  MEM USAGE
-unilab-frontend   <1%    ~50MB
-unilab-backend    5-15%  ~200-400MB
-unilab-storage    <1%    ~100MB
-```
-
-## Conclusión
-
-Fase 1 completada: **Frontend como microservicio independiente** ✅
-
-- Frontend containerizado con Nginx
-- Separado del backend
-- Listo para escalabilidad
-- Preparado para futuras migraciones tecnológicas
-
-Próximo paso: Crear API Gateway y separar servicios backend por dominio.
 
 ---
 
-**Documentación**: [Ver README.md](README.md)  
-**Tecnologías**: Docker, Docker Compose, Nginx, FastAPI, Python  
-**Estado**: Producción lista
+## Conclusión
+
+La Fase 1 permitió separar el frontend como un microservicio independiente y ejecutar UniLab-SW mediante Docker Compose.
+
+Resultados principales:
+
+- Frontend containerizado con Nginx.
+- Backend containerizado con FastAPI/Uvicorn.
+- Redis agregado como servicio auxiliar.
+- Comunicación frontend-backend mediante proxy `/api`.
+- Recepción de telemetría UDP desde ESP32 o simulador.
+- Identificación y solución de problemas reales de integración:
+  - Caché del navegador.
+  - Puerto UDP no expuesto.
+  - Compatibilidad Wi-Fi 2.4 GHz del ESP32.
+
+La arquitectura queda preparada para evolucionar hacia una solución más modular, donde los servicios de telemetría, eventos, almacenamiento, seguridad y autenticación puedan separarse progresivamente.
+
+---
+
+**Tecnologías utilizadas:** Docker, Docker Compose, Nginx, FastAPI, Python, Redis, UDP, ESP32  
+**Estado:** Fase 1 completada y validada experimentalmente
