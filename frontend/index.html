@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UniLab Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="navbar">
+        <div class="navbar-content">
+            <h1 class="navbar-title">UniLab Dashboard</h1>
+            <div class="navbar-status">
+                <span id="connection-status" class="status-badge connecting">Conectando...</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <p class="subtitle">
+            Supervisión de telemetría, variables visibles, rangos de seguridad, notas y gráficos en tiempo real.
+        </p>
+
+        <div class="grid-container">
+            <!-- Card: Estado -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Estado del Sistema</h2>
+                </div>
+                <div class="card-body">
+                    <div class="status-group">
+                        <label>API Backend:</label>
+                        <p id="api-status" class="status-loading">Cargando...</p>
+                    </div>
+                    <div class="status-group">
+                        <label>Almacenamiento:</label>
+                        <p id="storage-status" class="status-loading">Cargando...</p>
+                    </div>
+                    <div class="button-group">
+                        <button class="btn btn-primary" onclick="refreshStatus()">Actualizar</button>
+                        <button class="btn btn-danger" onclick="clearStorageConfirm()">Limpiar datos</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card: Últimas Mediciones -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Último Paquete</h2>
+                </div>
+                <div class="card-body">
+                    <div id="latest-packet" class="packet-display">
+                        Cargando...
+                    </div>
+                    <button class="btn btn-primary" onclick="refreshLatestPacket()" style="margin-top: 10px;">Actualizar</button>
+                </div>
+            </div>
+
+            <!-- Card: Variables Disponibles -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Variables Disponibles</h2>
+                </div>
+                <div class="card-body">
+                    <p class="card-description">Selecciona qué variables deseas visualizar.</p>
+                    <div id="variables-list" class="variables-grid">
+                        Cargando variables...
+                    </div>
+                    <div class="button-group">
+                        <button class="btn btn-success" onclick="saveVisibleVariables()">Guardar Selección</button>
+                        <button class="btn btn-primary" onclick="loadVariableControls()">Actualizar Lista</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card: Variables Visibles (Configuradas) -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Variables Visibles Configuradas</h2>
+                </div>
+                <div class="card-body">
+                    <div id="configured-variables" class="variables-grid">
+                        Cargando...
+                    </div>
+                    <button class="btn btn-primary" onclick="loadVisibleVariables()" style="margin-top: 10px;">Actualizar</button>
+                </div>
+            </div>
+
+            <!-- Card: Rangos de Seguridad (Full Width) -->
+            <div class="card full-width">
+                <div class="card-header">
+                    <h2>Rangos de Seguridad</h2>
+                </div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label for="limit-variable">Variable:</label>
+                        <select id="limit-variable" class="form-input"></select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="limit-min">Valor Mínimo:</label>
+                            <input id="limit-min" type="number" step="any" placeholder="0" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="limit-max">Valor Máximo:</label>
+                            <input id="limit-max" type="number" step="any" placeholder="60" class="form-input">
+                        </div>
+                    </div>
+                    <button class="btn btn-success" onclick="setSafetyLimits()">Establecer Límites</button>
+                </div>
+            </div>
+
+            <!-- Card: Gráfico (Full Width) -->
+            <div class="card full-width">
+                <div class="card-header">
+                    <h2>Gráfico de Telemetría</h2>
+                </div>
+                <div class="card-body">
+                    <canvas id="telemetry-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Card: Últimos Eventos (Full Width) -->
+            <div class="card full-width">
+                <div class="card-header">
+                    <h2>Últimos Eventos</h2>
+                </div>
+                <div class="card-body">
+                    <div id="events-container" class="events-container">
+                        Cargando eventos...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card: Últimos Paquetes (Full Width) -->
+            <div class="card full-width">
+                <div class="card-header">
+                    <h2>Historial de Paquetes</h2>
+                </div>
+                <div class="card-body">
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label for="packet-limit">Mostrar últimos:</label>
+                        <input id="packet-limit" type="number" value="10" min="1" max="100" class="form-input" style="width: 100px;">
+                        <button class="btn btn-primary" onclick="loadRecentPackets()" style="margin-top: 0;">Cargar</button>
+                    </div>
+                    <div id="packets-container" class="packets-table">
+                        Cargando paquetes...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <p>UniLab Dashboard v0.1.0 | Última actualización: <span id="last-update">--</span></p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>

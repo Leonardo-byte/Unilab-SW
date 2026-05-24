@@ -1,0 +1,87 @@
+version: '3.9'
+
+services:
+  # Frontend Microservice (Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: unilab-frontend
+    ports:
+      - "80:80"
+    environment:
+      - API_BASE_URL=http://backend:8000
+    depends_on:
+      - backend
+    networks:
+      - unilab-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    labels:
+      - "com.unilab.service=frontend"
+      - "com.unilab.tier=presentation"
+
+  # Backend (monolito existente)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: unilab-backend
+    ports:
+      - "8000:8000"
+      - "5005:5005/udp"
+    environment:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=info
+    depends_on:
+      - storage
+    networks:
+      - unilab-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    labels:
+      - "com.unilab.service=backend"
+      - "com.unilab.tier=application"
+    volumes:
+      - ./unilab:/app/unilab
+      - ./tests:/app/tests
+
+  # Storage service (placeholder para futuro)
+  storage:
+    image: redis:7-alpine
+    container_name: unilab-storage
+    ports:
+      - "6379:6379"
+    networks:
+      - unilab-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    labels:
+      - "com.unilab.service=storage"
+      - "com.unilab.tier=data"
+    volumes:
+      - redis-data:/data
+
+networks:
+  unilab-network:
+    driver: bridge
+    name: unilab-network
+
+volumes:
+  redis-data:
+    name: unilab-redis-data

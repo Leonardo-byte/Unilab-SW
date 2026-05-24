@@ -42,19 +42,24 @@ class MemoryStorage:
     datos real.
     """
 
-    def __init__(self, max_packets: int = 100, max_events: int = 100) -> None:
+    def __init__(
+        self,
+        max_packets: int = 100,
+        max_events: int = 100,
+        name: str = "memory_storage",
+    ) -> None:
         if max_packets <= 0:
             raise ValueError("max_packets debe ser mayor que cero.")
-
         if max_events <= 0:
             raise ValueError("max_events debe ser mayor que cero.")
 
+        self.name = name
+        self._is_setup = False
+
         self.max_packets = max_packets
         self.max_events = max_events
-
         self._packets: list[TelemetryPacket] = []
         self._events: list[Event] = []
-
         self._visible_variables: set[str] | None = None
         self._notes: list[dict[str, Any]] = []
 
@@ -156,11 +161,11 @@ class MemoryStorage:
         self._notes.clear()
 
     def get_status(self) -> dict[str, Any]:
-        """
-        Retorna el estado general del almacenamiento en memoria.
-        """
+        """Retorna el estado general del almacenamiento en memoria."""
         return {
+            "name": self.name,
             "type": self.__class__.__name__,
+            "is_setup": self._is_setup,
             "packets_count": len(self._packets),
             "events_count": len(self._events),
             "max_packets": self.max_packets,
@@ -256,3 +261,11 @@ class MemoryStorage:
         Retorna todas las notas registradas.
         """
         return self._notes
+    
+    def setup(self) -> None:
+        """Inicializa el almacenamiento en memoria."""
+        self._is_setup = True
+
+    def shutdown(self) -> None:
+        """Apaga el almacenamiento en memoria."""
+        self._is_setup = False

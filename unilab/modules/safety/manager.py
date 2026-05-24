@@ -50,8 +50,14 @@ class SafetyManager:
     Si todas las mediciones son válidas, se genera un Event normal.
     """
 
-    def __init__(self, limits: dict[str, dict[str, float]] | None = None) -> None:
+    def __init__(
+        self,
+        limits: dict[str, dict[str, float]] | None = None,
+        name: str = "safety_manager",
+    ) -> None:
+        self.name = name
         self.limits = limits or {}
+        self._is_setup = False
 
     def validate_packet(self, packet: TelemetryPacket) -> list[Event]:
         """
@@ -155,11 +161,11 @@ class SafetyManager:
         return self.limits
 
     def get_status(self) -> dict[str, Any]:
-        """
-        Retorna el estado general del gestor de seguridad.
-        """
+        """Retorna el estado general del gestor de seguridad."""
         return {
+            "name": self.name,
             "type": self.__class__.__name__,
+            "is_setup": self._is_setup,
             "limits_count": len(self.limits),
             "limits": self.limits,
         }
@@ -186,3 +192,11 @@ class SafetyManager:
                 "unit": measurement.unit,
             },
         )
+    
+    def setup(self) -> None:
+        """Inicializa el módulo de seguridad."""
+        self._is_setup = True
+
+    def shutdown(self) -> None:
+        """Apaga el módulo de seguridad."""
+        self._is_setup = False

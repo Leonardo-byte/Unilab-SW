@@ -22,37 +22,23 @@ MemoryStorage
 FastAPI / Dashboard
 """
 
-from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from fastapi import Body, FastAPI, Request
-from unilab.modules.safety import SafetyManager
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 
+from unilab.core.app import UniLabApp
+from unilab.modules.safety import SafetyManager
 from unilab.modules.storage import MemoryStorage
 
 
-TEMPLATES_DIR = Path(__file__).parent / "templates"
+SAFETY_MANAGER_NAME = "safety_manager"
+MEMORY_STORAGE_NAME = "memory_storage"
 
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
-def create_app(
-    storage: MemoryStorage | None = None,
-    safety: SafetyManager | None = None,
-) -> FastAPI:
-    
+def create_app(unilab_app: UniLabApp) -> FastAPI:
     """
-    Crea la aplicación FastAPI de UniLab.
-
-    Args:
-        storage:
-            Instancia de MemoryStorage usada para consultar paquetes y eventos.
-            Si no se entrega una instancia, se crea una por defecto.
-
-    Returns:
-        FastAPI:
-            Aplicación web lista para ejecutarse con uvicorn.
+    Crea la aplicación FastAPI de UniLab usando UniLabApp como fuente
+    de módulos registrados.
     """
     app = FastAPI(
         title="UniLab Demo API",
@@ -60,40 +46,28 @@ def create_app(
         version="0.1.0",
     )
 
-    app.state.storage = storage or MemoryStorage()
-    app.state.safety = safety or SafetyManager()
-
-    @app.get("/", response_class=HTMLResponse)
-    def dashboard(request: Request) -> HTMLResponse:
-        """
-        Muestra el dashboard HTML principal.
-        """
-        return templates.TemplateResponse(
-            request,
-            "dashboard.html",
-            {
-                "title": "UniLab Dashboard",
-            },
-    )
+    app.state.unilab_app = unilab_app
 
     @app.get("/api/status")
-    def get_status() -> dict[str, Any]:
+    def get_status(request: Request) -> dict[str, Any]:
         """
-        Retorna el estado general del almacenamiento usado por la API.
+        Retorna el estado general del sistema usado por la API.
         """
-        current_storage: MemoryStorage = app.state.storage
+        current_storage = get_storage(request)
+        current_safety = get_safety(request)
 
         return {
             "api": "running",
             "storage": current_storage.get_status(),
+            "safety": current_safety.get_status(),
         }
 
     @app.get("/api/latest-packet")
-    def get_latest_packet() -> dict[str, Any]:
+    def get_latest_packet(request: Request) -> dict[str, Any]:
         """
         Retorna el último paquete de telemetría recibido.
         """
-        current_storage: MemoryStorage = app.state.storage
+        current_storage = get_storage(request)
         packet = current_storage.get_latest_packet()
 
         if packet is None:
@@ -112,14 +86,16 @@ def create_app(
             "available": True,
             "packet": packet_dict,
         }
-    
 
     @app.get("/api/recent-packets")
-    def get_recent_packets(limit: int = 10) -> dict[str, Any]:
+    def get_recent_packets(
+        request: Request,
+        limit: int = 10,
+    ) -> dict[str, Any]:
         """
         Retorna los últimos paquetes de telemetría almacenados.
         """
-        current_storage: MemoryStorage = app.state.storage
+        current_storage = get_storage(request)
         packets = current_storage.get_recent_packets(limit=limit)
 
         visible_variables = current_storage.get_visible_variables_filter()
@@ -138,11 +114,14 @@ def create_app(
         }
 
     @app.get("/api/recent-events")
-    def get_recent_events(limit: int = 10) -> dict[str, Any]:
+    def get_recent_events(
+        request: Request,
+        limit: int = 10,
+    ) -> dict[str, Any]:
         """
         Retorna los últimos eventos almacenados.
         """
-        current_storage: MemoryStorage = app.state.storage
+        current_storage = get_storage(request)
         events = current_storage.get_recent_events(limit=limit)
 
         return {
@@ -151,24 +130,24 @@ def create_app(
         }
 
     @app.post("/api/clear")
-    def clear_storage() -> dict[str, Any]:
+    def clear_storage(request: Request) -> dict[str, Any]:
         """
         Limpia los paquetes y eventos almacenados en memoria.
         """
-        current_storage: MemoryStorage = app.state.storage
+        current_storage = get_storage(request)
         current_storage.clear()
 
         return {
             "message": "Almacenamiento limpiado correctamente.",
             "storage": current_storage.get_status(),
         }
-    
+
     @app.get("/api/variables")
-    def get_variables() -> dict[str, Any]:
+    def get_variables(request: Request) -> dict[str, Any]:
         """
         Retorna las variables disponibles según la telemetría recibida.
         """
-        current_storage: MemoryStorage = app.state.storage
+        current_storage = get_storage(request)
         packets = current_storage.get_recent_packets(limit=100)
 
         variables: set[str] = set()
@@ -182,28 +161,27 @@ def create_app(
             "variables": sorted(variables),
         }
 
-
     @app.get("/api/visible-variables")
-    def get_visible_variables() -> dict[str, Any]:
+    def get_visible_variables(request: Request) -> dict[str, Any]:
         """
         Retorna las variables seleccionadas por el usuario para visualizar.
         """
-        current_storage: MemoryStorage = app.state.storage
+        current_storage = get_storage(request)
 
         return {
             "configured": current_storage.is_visible_variables_configured(),
             "variables": current_storage.get_visible_variables(),
         }
 
-
     @app.post("/api/visible-variables")
     def set_visible_variables(
+        request: Request,
         payload: dict[str, Any] = Body(...),
     ) -> dict[str, Any]:
         """
         Actualiza las variables visibles seleccionadas por el usuario.
         """
-        current_storage: MemoryStorage = app.state.storage
+        current_storage = get_storage(request)
         variables = payload.get("variables", [])
 
         if not isinstance(variables, list):
@@ -216,27 +194,26 @@ def create_app(
             "variables": current_storage.get_visible_variables(),
         }
 
-
     @app.get("/api/safety/limits")
-    def get_safety_limits() -> dict[str, Any]:
+    def get_safety_limits(request: Request) -> dict[str, Any]:
         """
         Retorna los rangos de seguridad configurados.
         """
-        current_safety: SafetyManager = app.state.safety
+        current_safety = get_safety(request)
 
         return {
             "limits": current_safety.get_limits(),
         }
 
-
     @app.post("/api/safety/limits")
     def set_safety_limit(
+        request: Request,
         payload: dict[str, Any] = Body(...),
     ) -> dict[str, Any]:
         """
         Actualiza el rango de seguridad de una variable.
         """
-        current_safety: SafetyManager = app.state.safety
+        current_safety = get_safety(request)
 
         variable = payload.get("variable")
         min_value = payload.get("min")
@@ -256,13 +233,12 @@ def create_app(
             "limits": current_safety.get_limits(),
         }
 
-
     @app.get("/api/notes")
-    def get_notes() -> dict[str, Any]:
+    def get_notes(request: Request) -> dict[str, Any]:
         """
         Retorna las notas registradas por el usuario.
         """
-        current_storage: MemoryStorage = app.state.storage
+        current_storage = get_storage(request)
         notes = current_storage.get_notes()
 
         return {
@@ -270,15 +246,15 @@ def create_app(
             "notes": notes,
         }
 
-
     @app.post("/api/notes")
     def add_note(
+        request: Request,
         payload: dict[str, Any] = Body(...),
     ) -> dict[str, Any]:
         """
         Registra una nota manual del usuario.
         """
-        current_storage: MemoryStorage = app.state.storage
+        current_storage = get_storage(request)
 
         message = payload.get("message")
         variable = payload.get("variable")
@@ -294,9 +270,51 @@ def create_app(
             "message": "Nota registrada correctamente.",
             "note": note,
         }
+    
+    @app.get("/api/modules")
+    def get_modules(request: Request) -> dict[str, Any]:
+        """
+        Retorna los módulos registrados en UniLabApp.
+        """
+        unilab_app = get_unilab_app(request)
 
+        return {
+            "app": unilab_app.get_status(),
+            "modules": unilab_app.get_modules_status(),
+        }
 
     return app
+
+
+def get_unilab_app(request: Request) -> UniLabApp:
+    """
+    Obtiene la instancia UniLabApp asociada a FastAPI.
+    """
+    return cast(UniLabApp, request.app.state.unilab_app)
+
+
+def get_storage(request: Request) -> MemoryStorage:
+    """
+    Obtiene el módulo MemoryStorage desde el core.
+    """
+    unilab_app = get_unilab_app(request)
+
+    return cast(
+        MemoryStorage,
+        unilab_app.get_module(MEMORY_STORAGE_NAME),
+    )
+
+
+def get_safety(request: Request) -> SafetyManager:
+    """
+    Obtiene el módulo SafetyManager desde el core.
+    """
+    unilab_app = get_unilab_app(request)
+
+    return cast(
+        SafetyManager,
+        unilab_app.get_module(SAFETY_MANAGER_NAME),
+    )
 
 
 def _filter_packet_dict(
@@ -342,6 +360,3 @@ def _to_dict(data: Any) -> dict[str, Any]:
         return data.__dict__
 
     return {"value": str(data)}
-
-
-app = create_app()
