@@ -1,6 +1,3 @@
-from unilab.modules.web.api import app, create_app
+from unilab.modules.web.api import create_app
 
-__all__ = [
-    "app",
-    "create_app",
-]
+__all__ = ["create_app"]

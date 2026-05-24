@@ -129,16 +129,6 @@ def main() -> None:
             unilab_app.get_module(UDP_RECEIVER_NAME),
         )
 
-        storage = cast(
-            MemoryStorage,
-            unilab_app.get_module(MEMORY_STORAGE_NAME),
-        )
-
-        safety = cast(
-            SafetyManager,
-            unilab_app.get_module(SAFETY_MANAGER_NAME),
-        )
-
         print(
             f"[UniLab Backend] UdpJsonReceiver configurado en "
             f"{UDP_HOST}:{UDP_PORT}"
@@ -146,12 +136,9 @@ def main() -> None:
 
         receiver.start()
 
-        app = create_app(
-            storage=storage,
-            safety=safety,
-        )
 
-        app.state.unilab_app = unilab_app
+        # Crea aplicacion
+        app = create_app(unilab_app=unilab_app)
 
         acquisition_thread = threading.Thread(
             target=acquisition_loop,
