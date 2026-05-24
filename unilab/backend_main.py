@@ -1,44 +1,84 @@
 """
 Entry point para el backend UniLab en Docker.
 
-Inicia:
-1. UdpJsonReceiver (escucha datos del ESP32)
-2. SafetyManager (valida datos)
-3. MemoryStorage (almacena datos)
-4. Uvicorn server (sirve API en puerto 8000)
+Este archivo solo arranca el runtime.
+La orquestación de módulos se delega a UniLabApp y al core.
 """
 
 import threading
 import time
-from typing import Any
+from typing import cast
 
 import uvicorn
 
+from unilab.core.app import UniLabApp
 from unilab.modules.acquisition import UdpJsonReceiver
 from unilab.modules.safety import SafetyManager
 from unilab.modules.storage import MemoryStorage
 from unilab.modules.web.api import create_app
 
 
-# Configuración
 UDP_HOST = "0.0.0.0"
 UDP_PORT = 5005
 
 WEB_HOST = "0.0.0.0"
 WEB_PORT = 8000
 
+UDP_RECEIVER_NAME = "udp_receiver"
+SAFETY_MANAGER_NAME = "safety_manager"
+MEMORY_STORAGE_NAME = "memory_storage"
 
-def acquisition_loop(
-    receiver: UdpJsonReceiver,
-    safety: SafetyManager,
-    storage: MemoryStorage,
-) -> None:
+
+def build_runtime() -> UniLabApp:
+    """
+    Construye UniLabApp y registra los módulos principales del backend.
+    """
+    unilab_app = UniLabApp()
+
+    receiver_config = {
+        "host": UDP_HOST,
+        "port": UDP_PORT,
+        "buffer_size": 1024,
+        "timeout": 0.1,
+    }
+
+    receiver = UdpJsonReceiver(
+        name=UDP_RECEIVER_NAME,
+        config=receiver_config,
+    )
+
+    safety = SafetyManager(name=SAFETY_MANAGER_NAME)
+    storage = MemoryStorage(name=MEMORY_STORAGE_NAME)
+
+    unilab_app.register_module(UDP_RECEIVER_NAME, receiver)
+    unilab_app.register_module(SAFETY_MANAGER_NAME, safety)
+    unilab_app.register_module(MEMORY_STORAGE_NAME, storage)
+
+    return unilab_app
+
+
+def acquisition_loop(unilab_app: UniLabApp) -> None:
     """
     Bucle principal de adquisición.
 
-    Lee paquetes UDP, valida las mediciones con SafetyManager
-    y guarda paquetes/eventos en MemoryStorage.
+    Obtiene los módulos desde UniLabApp, lee paquetes UDP,
+    valida mediciones y guarda paquetes/eventos.
     """
+    receiver = cast(
+        UdpJsonReceiver,
+        unilab_app.get_module(UDP_RECEIVER_NAME),
+    )
+
+    safety = cast(
+        SafetyManager,
+        unilab_app.get_module(SAFETY_MANAGER_NAME),
+    )
+
+    storage = cast(
+        MemoryStorage,
+        unilab_app.get_module(MEMORY_STORAGE_NAME),
+    )
+
     print("[UniLab Backend] Bucle de adquisición iniciado.")
 
     while receiver.is_running():
@@ -75,49 +115,65 @@ def acquisition_loop(
 
 def main() -> None:
     """
-    Función principal que inicia todos los servicios.
+    Inicializa UniLab, adquisición UDP y API web.
     """
     print("[UniLab Backend] Iniciando...")
 
-    # Crear instancias compartidas
-    storage = MemoryStorage()
-    safety = SafetyManager()
-    
-    # Configurar UdpJsonReceiver con config dict
-    receiver_config = {
-        "host": UDP_HOST,
-        "port": UDP_PORT,
-        "buffer_size": 1024,
-        "timeout": 0.1,
-    }
-    receiver = UdpJsonReceiver(name="udp_receiver", config=receiver_config)
+    unilab_app = build_runtime()
 
-    print(f"[UniLab Backend] UdpJsonReceiver configurado en {UDP_HOST}:{UDP_PORT}")
+    try:
+        unilab_app.setup()
 
-    # Setup del receiver (abre socket)
-    receiver.setup()
-    receiver.start()
+        receiver = cast(
+            UdpJsonReceiver,
+            unilab_app.get_module(UDP_RECEIVER_NAME),
+        )
 
-    # Crear app FastAPI con las instancias compartidas
-    app = create_app(storage=storage, safety=safety)
+        storage = cast(
+            MemoryStorage,
+            unilab_app.get_module(MEMORY_STORAGE_NAME),
+        )
 
-    # Iniciar bucle de adquisición en thread separado
-    acquisition_thread = threading.Thread(
-        target=acquisition_loop,
-        args=(receiver, safety, storage),
-        daemon=True,
-    )
-    acquisition_thread.start()
-    print("[UniLab Backend] Thread de adquisición iniciado.")
+        safety = cast(
+            SafetyManager,
+            unilab_app.get_module(SAFETY_MANAGER_NAME),
+        )
 
-    # Iniciar servidor Uvicorn
-    print(f"[UniLab Backend] Uvicorn servidor en {WEB_HOST}:{WEB_PORT}")
-    uvicorn.run(
-        app,
-        host=WEB_HOST,
-        port=WEB_PORT,
-        log_level="info",
-    )
+        print(
+            f"[UniLab Backend] UdpJsonReceiver configurado en "
+            f"{UDP_HOST}:{UDP_PORT}"
+        )
+
+        receiver.start()
+
+        app = create_app(
+            storage=storage,
+            safety=safety,
+        )
+
+        app.state.unilab_app = unilab_app
+
+        acquisition_thread = threading.Thread(
+            target=acquisition_loop,
+            args=(unilab_app,),
+            daemon=True,
+        )
+
+        acquisition_thread.start()
+        print("[UniLab Backend] Thread de adquisición iniciado.")
+
+        print(f"[UniLab Backend] Uvicorn servidor en {WEB_HOST}:{WEB_PORT}")
+
+        uvicorn.run(
+            app,
+            host=WEB_HOST,
+            port=WEB_PORT,
+            log_level="info",
+        )
+
+    finally:
+        print("[UniLab Backend] Apagando servicios...")
+        unilab_app.shutdown()
 
 
 if __name__ == "__main__":
