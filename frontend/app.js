@@ -598,7 +598,12 @@ async function refreshDevices() {
         return;
     }
 
-    panel.innerHTML = '<p>Endpoint /api/devices pendiente de implementación.</p>';
+    try {
+        const data = await apiCall('/api/devices');
+        renderDevices(data.devices || [], data.protocols || []);
+    } catch (error) {
+        panel.innerHTML = '<span class="error-message">Error al cargar dispositivos</span>';
+    }
 }
 
 function renderDevices(devices, protocols) {
@@ -611,23 +616,30 @@ function renderDevices(devices, protocols) {
     if (!devices || devices.length === 0) {
         panel.innerHTML = `
             <p style="color: var(--text-secondary);">No hay dispositivos detectados.</p>
-            <p>Protocolos disponibles: ${protocols.join(', ') || 'Ninguno'}</p>
+            <p><strong>Protocolos disponibles:</strong> ${protocols.join(', ') || 'Ninguno'}</p>
         `;
         return;
     }
 
     panel.innerHTML = devices
         .map((device) => {
+            const deviceId = escapeHtml(device.device_id);
+            const protocol = escapeHtml(device.protocol);
+            const status = escapeHtml(device.status);
+            const connectedText = device.connected ? 'Sí' : 'No';
+
             const actionButton = device.connected
-                ? `<button class="btn btn-danger" onclick="disconnectDevice('${escapeHtml(device.device_id)}')">Desconectar</button>`
-                : `<button class="btn btn-success" onclick="connectDevice('${escapeHtml(device.device_id)}')">Conectar</button>`;
+                ? `<button class="btn btn-danger" onclick="disconnectDevice('${deviceId}')">Desconectar</button>`
+                : `<button class="btn btn-success" onclick="connectDevice('${deviceId}')">Conectar</button>`;
 
             return `
                 <div class="device-card">
-                    <h3>${escapeHtml(device.device_id)}</h3>
-                    <p><strong>Protocolo:</strong> ${escapeHtml(device.protocol)}</p>
-                    <p><strong>Estado:</strong> ${escapeHtml(device.status)}</p>
-                    <p><strong>Conectado:</strong> ${device.connected ? 'Sí' : 'No'}</p>
+                    <h3>${deviceId}</h3>
+                    <p><strong>Protocolo:</strong> ${protocol}</p>
+                    <p><strong>Estado:</strong> ${status}</p>
+                    <p><strong>Conectado:</strong> ${connectedText}</p>
+                    <p><strong>Paquetes recibidos:</strong> ${device.packets_received ?? 0}</p>
+                    <p><strong>Última detección:</strong> ${formatDateTime(device.last_seen)}</p>
                     ${actionButton}
                 </div>
             `;
@@ -637,29 +649,47 @@ function renderDevices(devices, protocols) {
 
 async function connectDevice(deviceId) {
     try {
-        await apiCall(`/api/devices/${deviceId}/connect`, {
+        await apiCall(`/api/devices/${encodeURIComponent(deviceId)}/connect`, {
             method: 'POST'
         });
 
         showSuccessMessage(`Dispositivo ${deviceId} conectado`);
         await refreshDevices();
+        await refreshLatestPacket();
+        await updateChartData();
     } catch (error) {
+        console.error('Error connecting device:', error);
         showErrorMessage(`Error al conectar ${deviceId}`);
     }
 }
 
 async function disconnectDevice(deviceId) {
     try {
-        await apiCall(`/api/devices/${deviceId}/disconnect`, {
+        await apiCall(`/api/devices/${encodeURIComponent(deviceId)}/disconnect`, {
             method: 'POST'
         });
 
         showSuccessMessage(`Dispositivo ${deviceId} desconectado`);
         await refreshDevices();
     } catch (error) {
+        console.error('Error disconnecting device:', error);
         showErrorMessage(`Error al desconectar ${deviceId}`);
     }
 }
+
+
+function formatDateTime(value) {
+    if (!value) {
+        return 'N/A';
+    }
+
+    try {
+        return new Date(value).toLocaleString('es-ES');
+    } catch (error) {
+        return value;
+    }
+}
+
 
 
 // Handle page unload
