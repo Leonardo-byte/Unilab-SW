@@ -1,31 +1,39 @@
 # tests/test_scheduler.py
 import pytest
-from unilab.modules.profiles.waveforms import ProfileGenerator
-from unilab.modules.scheduler.experiment_plan import ExperimentPlan
+from unilab.modules.profiles.validators import ProfileValidator
+from unilab.modules.profiles.base import ExperimentPlan, ExperimentStep
 from unilab.modules.simulation.simple_model import LabSimulator
 from unilab.modules.scheduler.scheduler import ExperimentScheduler
 
-def test_scheduler_integrational_execution():
-    """Valida la integración de perfiles, simulación y planificación en cadena."""
-    # 1. Configurar Perfil
-    profile = ProfileGenerator(profile_id="P-01", description="Perfil de Integración")
-    profile.add_step("Fase Inicial", value=2.0, duration_seconds=5.0)
-    profile.add_step("Fase Final", value=4.0, duration_seconds=5.0)
+def test_experiment_scheduler_execution_and_history():
+    """Probar que ExpermientScheduler ejecute un plan completo y guarda historial."""
+    simulator = LabSimulator(name="Simulador Auxiliar")
+    simulator.setup() # Inicializamos el simulador del que depende
 
-    # 2. Configurar Plan y Simulador (Sin ruido para verificar valores exactos)
-    plan = ExperimentPlan(plan_id="PLAN-100", profile_generator=profile)
-    simulator = LabSimulator(attenuation_factor=-2.0, noise_level=0.0)
-    scheduler = ExperimentScheduler(simulator=simulator)
+    scheduler = ExperimentScheduler(name="Scheduler Central", simulator=simulator)
+    validator = ProfileValidator()
 
-    # 3. Ejecutar Planificación
-    report = scheduler.execute_plan(plan)
+    # Crear un plan de prueba válido
+    plan = ExperimentPlan("Plan de Control")
+    plan.add_step(ExperimentStep("Fase Alfa", 15.0, 5.0))
+    plan.add_step(ExperimentStep("Fase Beta", 30.0, 5.0))
 
-    # 4. Verificaciones
-    assert report["plan_id"] == "PLAN-100"
-    assert report["final_status"] == "COMPLETED"
-    assert report["total_steps_executed"] == 2
+    # No debería ejecutar si el scheduler no ha hecho setup()
+    with pytest.raises(RuntimeError, match="El scheduler no está activo"):
+        scheduler.execute_plan(plan, validator=validator)
+
+    # Inicializar planificador y ejecutar
+    assert scheduler.setup() is True
+    assert scheduler.execute_plan(plan, validator=validator) is True
+
+    # Verificar almacenamiento de historial
+    history = scheduler.get_execution_history()
+    assert len(history) == 2
+    assert history[0]["step"] == "Fase Alfa"
+    assert history[0]["target"] == 15.0
     
-    # Validar que los resultados del paso 1 coincidan matemáticamente
-    first_step_log = report["history"][0]
-    assert first_step_log["step_name"] == "Fase Inicial"
-    assert first_step_log["telemetry"]["simulated_response_db"] == -4.0  # 2.0 * -2.0
+    # Verificar limpieza de historial
+    scheduler.clear_history()
+    assert len(scheduler.get_execution_history()) == 0
+
+    scheduler.shutdown()

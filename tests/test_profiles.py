@@ -1,32 +1,37 @@
 # tests/test_profiles.py
 import pytest
-from unilab.modules.profiles.waveforms import ProfileGenerator
+from unilab.modules.profiles.base import ExperimentPlan, ExperimentStep, ProfileGenerator
 from unilab.modules.profiles.validators import ProfileValidator
 
-def test_profile_generation_and_duration():
+def test_profile_generator_creates_correctly():
     """Prueba que el perfil sume correctamente los tiempos y valores."""
-    generator = ProfileGenerator(profile_id="PROF-001", description="Ensayo de Antena 2.4GHz")
-    generator.add_step("Fase Inicial", value=1.5, duration_seconds=10.0)
-    generator.add_step("Fase Pico", value=3.5, duration_seconds=20.0)
+    base_value = 10.0
+    steps_count = 3
+    plan = ProfileGenerator.generate_step_profile("Test Plan", base_value, steps_count)
     
-    assert len(generator.steps) == 2
-    assert generator.total_duration() == 30.0
-    
-    data = generator.to_dict()
-    assert data["profile_id"] == "PROF-001"
+    assert plan.name == "Test Plan"
+    assert len(plan.steps) == steps_count
+    assert plan.steps[0].target_value == 10.0
+    assert plan.steps[2].target_value == 30.0
 
-def test_profile_validator_safety_limits():
-    """Prueba que el validador bloquee perfiles peligrosos o erróneos."""
-    generator = ProfileGenerator(profile_id="PROF-TEST", description="Test de límites")
+def test_profile_validator_rejects_invalid_profiles():
+    """Probar que ProfileValidator rechaza perfiles inválidos"""
+    validator = ProfileValidator(min_allowed=0.0, max_allowed=50.0)
     
-    # Caso 1: Perfil vacío debe ser inválido
-    assert ProfileValidator.is_safe_profile(generator, max_value=5.0, max_duration=60.0) is False
-    
-    # Caso 2: Perfil con valores seguros
-    generator.add_step("Paso 1", value=2.0, duration_seconds=15.0)
-    assert ProfileValidator.is_safe_profile(generator, max_value=5.0, max_duration=60.0) is True
-    
-    # Caso 3: Paso excede el voltaje/valor máximo configurado (ej: pide 6.0V cuando el tope es 5.0V)
-    generator.add_step("Paso Peligroso", value=6.0, duration_seconds=10.0)
-    assert ProfileValidator.is_safe_profile(generator, max_value=5.0, max_duration=60.0) is False
+    # Caso 1: Perfil vacío
+    empty_plan = ExperimentPlan("Plan Vacío")
+    with pytest.raises(ValueError, match="no contiene pasos"):
+        validator.validate(empty_plan)
+        
+    # Caso 2: Duración inválida (0 o negativa)
+    bad_duration_plan = ExperimentPlan("Plan Duración Mala")
+    bad_duration_plan.add_step(ExperimentStep("Paso 1", 20.0, 0)) # Duración 0
+    with pytest.raises(ValueError, match="Duración inválida"):
+        validator.validate(bad_duration_plan)
+        
+    # Caso 3: Valor fuera de rango (mayor al máximo permitido)
+    out_of_range_plan = ExperimentPlan("Plan Fuera de Rango")
+    out_of_range_plan.add_step(ExperimentStep("Paso 1", 60.0, 10.0)) # 60.0 > 50.0
+    with pytest.raises(ValueError, match="Valor fuera de rango"):
+        validator.validate(out_of_range_plan)
 
