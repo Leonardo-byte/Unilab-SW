@@ -232,55 +232,86 @@ async function loadVisibleVariables() {
     }
 }
 
-function saveVisibleVariables() {
+async function saveVisibleVariables() {
     const checkboxes = document.querySelectorAll('#variables-list input[type="checkbox"]');
     selectedVariables.clear();
-    
-    checkboxes.forEach(checkbox => {
+
+    checkboxes.forEach((checkbox) => {
         if (checkbox.checked) {
             selectedVariables.add(checkbox.value);
         }
     });
-    
-    if (selectedVariables.size === 0) {
-        showErrorMessage('Selecciona al menos una variable');
-        return;
+
+    const variables = Array.from(selectedVariables);
+
+    try {
+        await apiCall('/api/visible-variables', {
+            method: 'POST',
+            body: JSON.stringify({
+                variables: variables
+            })
+        });
+
+        showSuccessMessage(`${variables.length} variable(s) configurada(s)`);
+
+        await loadVisibleVariables();
+
+        await rebuildChartFromRecentPackets();
+
+    } catch (error) {
+        console.error('Error saving visible variables:', error);
+        showErrorMessage('Error al guardar variables visibles');
     }
-    
-    // In a real app, this would send to backend
-    console.log('Selected variables:', Array.from(selectedVariables));
-    showSuccessMessage(`${selectedVariables.size} variable(s) guardada(s)`);
-    loadVisibleVariables();
 }
 
 // Safety Limits
-function setSafetyLimits() {
+async function setSafetyLimits() {
     const variable = document.getElementById('limit-variable').value;
     const min = parseFloat(document.getElementById('limit-min').value);
     const max = parseFloat(document.getElementById('limit-max').value);
-    
+    const commentBelow = document.getElementById('limit-comment-below').value.trim();
+    const commentAbove = document.getElementById('limit-comment-above').value.trim();
+
     if (!variable) {
         showErrorMessage('Selecciona una variable');
         return;
     }
-    
-    if (isNaN(min) || isNaN(max)) {
+
+    if (Number.isNaN(min) || Number.isNaN(max)) {
         showErrorMessage('Ingresa valores numéricos válidos');
         return;
     }
-    
+
     if (min >= max) {
         showErrorMessage('El mínimo debe ser menor que el máximo');
         return;
     }
-    
-    console.log(`Safety limits for ${variable}: ${min} - ${max}`);
-    showSuccessMessage('Límites de seguridad establecidos');
-    
-    // Clear inputs
-    document.getElementById('limit-variable').value = '';
-    document.getElementById('limit-min').value = '';
-    document.getElementById('limit-max').value = '';
+
+    try {
+        await apiCall('/api/safety/limits', {
+            method: 'POST',
+            body: JSON.stringify({
+                variable: variable,
+                min: min,
+                max: max,
+                comment_below: commentBelow,
+                comment_above: commentAbove
+            })
+        });
+
+        showSuccessMessage('Límites y comentarios guardados');
+
+        await loadRecentEvents();
+
+        document.getElementById('limit-variable').value = '';
+        document.getElementById('limit-min').value = '';
+        document.getElementById('limit-max').value = '';
+        document.getElementById('limit-comment-below').value = '';
+        document.getElementById('limit-comment-above').value = '';
+    } catch (error) {
+        console.error('Error setting safety limits:', error);
+        showErrorMessage('Error al establecer límites');
+    }
 }
 
 // Events
@@ -413,6 +444,81 @@ function initializeChart() {
     updateChartData();
 }
 
+async function rebuildChartFromRecentPackets() {
+    if (!chart) return;
+
+    try {
+        const data = await apiCall('/api/recent-packets?limit=30');
+
+        resetChartData();
+
+        if (!data.packets || data.packets.length === 0) {
+            return;
+        }
+
+        data.packets.forEach((packet) => {
+            const timestamp = packet.timestamp || new Date().toISOString();
+
+            if (timestamp === lastChartTimestamp) {
+                return;
+            }
+
+            lastChartTimestamp = timestamp;
+            const timeLabel = new Date(timestamp).toLocaleTimeString();
+
+            chart.data.labels.push(timeLabel);
+
+            const measurements = packet.measurements || [];
+
+            measurements.forEach((measurement) => {
+                const variable = measurement.variable;
+                const value = Number(measurement.value);
+
+                if (!Number.isFinite(value)) {
+                    return;
+                }
+
+                if (!chartSeries[variable]) {
+                    const color = getChartColor(Object.keys(chartSeries).length);
+
+                    chartSeries[variable] = {
+                        label: variable,
+                        data: Array(Math.max(chart.data.labels.length - 1, 0)).fill(null),
+                        borderColor: color,
+                        backgroundColor: color + '20',
+                        tension: 0.25,
+                        fill: false
+                    };
+
+                    chart.data.datasets.push(chartSeries[variable]);
+                }
+
+                chartSeries[variable].data.push(value);
+            });
+
+            chart.data.datasets.forEach((dataset) => {
+                if (!measurements.some((measurement) => measurement.variable === dataset.label)) {
+                    dataset.data.push(null);
+                }
+            });
+        });
+
+        while (chart.data.labels.length > MAX_CHART_POINTS) {
+            chart.data.labels.shift();
+        }
+
+        chart.data.datasets.forEach((dataset) => {
+            while (dataset.data.length > MAX_CHART_POINTS) {
+                dataset.data.shift();
+            }
+        });
+
+        chart.update('none');
+    } catch (error) {
+        console.error('Error rebuilding chart:', error);
+    }
+}
+
 async function updateChartData() {
     if (!chart) return;
 
@@ -537,6 +643,22 @@ async function clearStorage() {
     } catch (error) {
         showErrorMessage('Error al limpiar el almacenamiento');
     }
+}
+
+function resetChartData() {
+    lastChartTimestamp = null;
+
+    Object.keys(chartSeries).forEach((key) => {
+        delete chartSeries[key];
+    });
+
+    if (!chart) {
+        return;
+    }
+
+    chart.data.labels = [];
+    chart.data.datasets = [];
+    chart.update('none');
 }
 
 

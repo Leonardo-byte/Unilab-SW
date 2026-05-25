@@ -162,6 +162,18 @@
                                     <input id="limit-max" type="number" step="any" placeholder="60" class="form-input">
                                 </div>
                             </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="limit-comment-below">Comentario si está por debajo del mínimo:</label>
+                                    <textarea id="limit-comment-below" class="form-input" rows="3" placeholder="Ejemplo: valor demasiado bajo, revisar sensor o proceso."></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label for="limit-comment-above">Comentario si está por encima del máximo:</label>
+                                    <textarea id="limit-comment-above" class="form-input" rows="3" placeholder="Ejemplo: valor demasiado alto, activar alerta o revisar actuador."></textarea>
+                                </div>
+                            </div>
+
                             <button class="btn btn-success" onclick="setSafetyLimits()">Establecer Límites</button>
                         </div>
                     </div>

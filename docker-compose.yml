@@ -34,7 +34,7 @@ services:
     container_name: unilab-backend
     ports:
       - "8000:8000"
-      - "5005:5005/udp"
+      - "5006:5005/udp" # modificar a 5005 cuando se vuelva a usar docker
     environment:
       - ENVIRONMENT=production
       - LOG_LEVEL=info

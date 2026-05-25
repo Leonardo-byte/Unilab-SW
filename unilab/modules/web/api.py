@@ -219,6 +219,9 @@ def create_app(unilab_app: UniLabApp) -> FastAPI:
         min_value = payload.get("min")
         max_value = payload.get("max")
 
+        comment_below = payload.get("comment_below")
+        comment_above = payload.get("comment_above")
+
         if not variable:
             raise ValueError("El campo 'variable' es obligatorio.")
 
@@ -226,6 +229,8 @@ def create_app(unilab_app: UniLabApp) -> FastAPI:
             measurement_name=variable,
             min_value=min_value,
             max_value=max_value,
+            comment_below=comment_below,
+            comment_above=comment_above,
         )
 
         return {
