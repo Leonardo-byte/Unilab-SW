@@ -6,7 +6,12 @@ const REFRESH_INTERVAL = 3000; // 3 seconds
 let chart = null;
 let selectedVariables = new Set();
 let allVariables = [];
-let refreshIntervalId = null;
+let realtimeTimer = null;
+
+const MAX_CHART_POINTS = 30;
+const chartSeries = {};
+let lastChartTimestamp = null;
+
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -17,29 +22,56 @@ document.addEventListener('DOMContentLoaded', () => {
 async function initializeDashboard() {
     try {
         updateConnectionStatus('connecting');
-        
-        // Initial data load
+
+        setupNavigation();
+
         await Promise.all([
             refreshStatus(),
             refreshLatestPacket(),
             loadVariableControls(),
             loadVisibleVariables(),
             loadRecentEvents(),
-            loadRecentPackets()
+            loadRecentPackets(),
+            refreshDevices()
         ]);
-        
-        // Initialize chart
+
         initializeChart();
-        
-        // Set up auto-refresh
-        startAutoRefresh();
-        
+
+        startRealtimeUpdates();
+
         updateConnectionStatus('connected');
     } catch (error) {
         console.error('Error initializing dashboard:', error);
         updateConnectionStatus('disconnected');
         showErrorMessage('Error al inicializar el dashboard');
     }
+}
+
+function setupNavigation() {
+    const buttons = document.querySelectorAll('.nav-button');
+    const views = document.querySelectorAll('.view');
+
+    buttons.forEach((button) => {
+        button.addEventListener('click', () => {
+            const targetView = button.dataset.view;
+
+            buttons.forEach((item) => item.classList.remove('active'));
+            button.classList.add('active');
+
+            views.forEach((view) => {
+                view.classList.remove('active-view');
+            });
+
+            const selectedView = document.getElementById(targetView);
+            if (selectedView) {
+                selectedView.classList.add('active-view');
+            }
+
+            if (targetView === 'charts-view') {
+                updateChartData();
+            }
+        });
+    });
 }
 
 // Connection status
@@ -57,17 +89,21 @@ function updateConnectionStatus(status) {
     badge.textContent = statusTexts[status] || status;
 }
 
-// Auto-refresh setup
-function startAutoRefresh() {
-    if (refreshIntervalId) clearInterval(refreshIntervalId);
-    
-    refreshIntervalId = setInterval(() => {
-        Promise.all([
-            refreshLatestPacket(),
-            loadRecentEvents(),
-            loadRecentPackets()
-        ]).catch(error => console.error('Auto-refresh error:', error));
-    }, REFRESH_INTERVAL);
+function startRealtimeUpdates() {
+    if (realtimeTimer !== null) {
+        clearInterval(realtimeTimer);
+    }
+
+    realtimeTimer = setInterval(async () => {
+        try {
+            await refreshDashboardData();
+            updateConnectionStatus('connected');
+            updateLastUpdate();
+        } catch (error) {
+            console.error('Realtime refresh error:', error);
+            updateConnectionStatus('disconnected');
+        }
+    }, 1000);
 }
 
 // API Calls
@@ -196,55 +232,86 @@ async function loadVisibleVariables() {
     }
 }
 
-function saveVisibleVariables() {
+async function saveVisibleVariables() {
     const checkboxes = document.querySelectorAll('#variables-list input[type="checkbox"]');
     selectedVariables.clear();
-    
-    checkboxes.forEach(checkbox => {
+
+    checkboxes.forEach((checkbox) => {
         if (checkbox.checked) {
             selectedVariables.add(checkbox.value);
         }
     });
-    
-    if (selectedVariables.size === 0) {
-        showErrorMessage('Selecciona al menos una variable');
-        return;
+
+    const variables = Array.from(selectedVariables);
+
+    try {
+        await apiCall('/api/visible-variables', {
+            method: 'POST',
+            body: JSON.stringify({
+                variables: variables
+            })
+        });
+
+        showSuccessMessage(`${variables.length} variable(s) configurada(s)`);
+
+        await loadVisibleVariables();
+
+        await rebuildChartFromRecentPackets();
+
+    } catch (error) {
+        console.error('Error saving visible variables:', error);
+        showErrorMessage('Error al guardar variables visibles');
     }
-    
-    // In a real app, this would send to backend
-    console.log('Selected variables:', Array.from(selectedVariables));
-    showSuccessMessage(`${selectedVariables.size} variable(s) guardada(s)`);
-    loadVisibleVariables();
 }
 
 // Safety Limits
-function setSafetyLimits() {
+async function setSafetyLimits() {
     const variable = document.getElementById('limit-variable').value;
     const min = parseFloat(document.getElementById('limit-min').value);
     const max = parseFloat(document.getElementById('limit-max').value);
-    
+    const commentBelow = document.getElementById('limit-comment-below').value.trim();
+    const commentAbove = document.getElementById('limit-comment-above').value.trim();
+
     if (!variable) {
         showErrorMessage('Selecciona una variable');
         return;
     }
-    
-    if (isNaN(min) || isNaN(max)) {
+
+    if (Number.isNaN(min) || Number.isNaN(max)) {
         showErrorMessage('Ingresa valores numéricos válidos');
         return;
     }
-    
+
     if (min >= max) {
         showErrorMessage('El mínimo debe ser menor que el máximo');
         return;
     }
-    
-    console.log(`Safety limits for ${variable}: ${min} - ${max}`);
-    showSuccessMessage('Límites de seguridad establecidos');
-    
-    // Clear inputs
-    document.getElementById('limit-variable').value = '';
-    document.getElementById('limit-min').value = '';
-    document.getElementById('limit-max').value = '';
+
+    try {
+        await apiCall('/api/safety/limits', {
+            method: 'POST',
+            body: JSON.stringify({
+                variable: variable,
+                min: min,
+                max: max,
+                comment_below: commentBelow,
+                comment_above: commentAbove
+            })
+        });
+
+        showSuccessMessage('Límites y comentarios guardados');
+
+        await loadRecentEvents();
+
+        document.getElementById('limit-variable').value = '';
+        document.getElementById('limit-min').value = '';
+        document.getElementById('limit-max').value = '';
+        document.getElementById('limit-comment-below').value = '';
+        document.getElementById('limit-comment-above').value = '';
+    } catch (error) {
+        console.error('Error setting safety limits:', error);
+        showErrorMessage('Error al establecer límites');
+    }
 }
 
 // Events
@@ -368,49 +435,158 @@ function initializeChart() {
         }
     });
     
+    lastChartTimestamp = null;
+
+    Object.keys(chartSeries).forEach((key) => {
+        delete chartSeries[key];
+    });
+
     updateChartData();
+}
+
+async function rebuildChartFromRecentPackets() {
+    if (!chart) return;
+
+    try {
+        const data = await apiCall('/api/recent-packets?limit=30');
+
+        resetChartData();
+
+        if (!data.packets || data.packets.length === 0) {
+            return;
+        }
+
+        data.packets.forEach((packet) => {
+            const timestamp = packet.timestamp || new Date().toISOString();
+
+            if (timestamp === lastChartTimestamp) {
+                return;
+            }
+
+            lastChartTimestamp = timestamp;
+            const timeLabel = new Date(timestamp).toLocaleTimeString();
+
+            chart.data.labels.push(timeLabel);
+
+            const measurements = packet.measurements || [];
+
+            measurements.forEach((measurement) => {
+                const variable = measurement.variable;
+                const value = Number(measurement.value);
+
+                if (!Number.isFinite(value)) {
+                    return;
+                }
+
+                if (!chartSeries[variable]) {
+                    const color = getChartColor(Object.keys(chartSeries).length);
+
+                    chartSeries[variable] = {
+                        label: variable,
+                        data: Array(Math.max(chart.data.labels.length - 1, 0)).fill(null),
+                        borderColor: color,
+                        backgroundColor: color + '20',
+                        tension: 0.25,
+                        fill: false
+                    };
+
+                    chart.data.datasets.push(chartSeries[variable]);
+                }
+
+                chartSeries[variable].data.push(value);
+            });
+
+            chart.data.datasets.forEach((dataset) => {
+                if (!measurements.some((measurement) => measurement.variable === dataset.label)) {
+                    dataset.data.push(null);
+                }
+            });
+        });
+
+        while (chart.data.labels.length > MAX_CHART_POINTS) {
+            chart.data.labels.shift();
+        }
+
+        chart.data.datasets.forEach((dataset) => {
+            while (dataset.data.length > MAX_CHART_POINTS) {
+                dataset.data.shift();
+            }
+        });
+
+        chart.update('none');
+    } catch (error) {
+        console.error('Error rebuilding chart:', error);
+    }
 }
 
 async function updateChartData() {
     if (!chart) return;
-    
+
     try {
-        const data = await apiCall('/api/recent-packets?limit=30');
-        
-        if (!data.packets || data.packets.length === 0) return;
-        
-        // Prepare data
-        const timestamps = data.packets.map(p => 
-            p.timestamp ? new Date(p.timestamp).toLocaleTimeString() : 'N/A'
-        );
-        
-        const variablesData = {};
-        
-        data.packets.forEach(packet => {
-            if (packet.measurements) {
-                packet.measurements.forEach(m => {
-                    if (!variablesData[m.variable]) {
-                        variablesData[m.variable] = [];
-                    }
-                    variablesData[m.variable].push(m.value);
-                });
+        const data = await apiCall('/api/latest-packet');
+
+        if (!data.available || !data.packet) {
+            return;
+        }
+
+        const packet = data.packet;
+        const timestamp = packet.timestamp || new Date().toISOString();
+
+        if (timestamp === lastChartTimestamp) {
+            return;
+        }
+
+        lastChartTimestamp = timestamp;
+
+        const timeLabel = new Date(timestamp).toLocaleTimeString();
+
+        chart.data.labels.push(timeLabel);
+
+        if (chart.data.labels.length > MAX_CHART_POINTS) {
+            chart.data.labels.shift();
+        }
+
+        const measurements = packet.measurements || [];
+
+        measurements.forEach((measurement) => {
+            const variable = measurement.variable;
+            const value = Number(measurement.value);
+
+            if (!Number.isFinite(value)) {
+                return;
+            }
+
+            if (!chartSeries[variable]) {
+                chartSeries[variable] = {
+                    label: variable,
+                    data: Array(Math.max(chart.data.labels.length - 1, 0)).fill(null),
+                    borderColor: getChartColor(Object.keys(chartSeries).length),
+                    backgroundColor: getChartColor(Object.keys(chartSeries).length) + '20',
+                    tension: 0.25,
+                    fill: false
+                };
+
+                chart.data.datasets.push(chartSeries[variable]);
+            }
+
+            chartSeries[variable].data.push(value);
+
+            if (chartSeries[variable].data.length > MAX_CHART_POINTS) {
+                chartSeries[variable].data.shift();
             }
         });
-        
-        // Generate colors
-        const colors = generateChartColors(Object.keys(variablesData).length);
-        
-        chart.data.labels = timestamps;
-        chart.data.datasets = Object.entries(variablesData).map((entry, idx) => ({
-            label: entry[0],
-            data: entry[1],
-            borderColor: colors[idx],
-            backgroundColor: colors[idx] + '20',
-            tension: 0.1,
-            fill: false
-        }));
-        
-        chart.update();
+
+        chart.data.datasets.forEach((dataset) => {
+            if (!measurements.some((measurement) => measurement.variable === dataset.label)) {
+                dataset.data.push(null);
+
+                if (dataset.data.length > MAX_CHART_POINTS) {
+                    dataset.data.shift();
+                }
+            }
+        });
+
+        chart.update('none');
     } catch (error) {
         console.error('Error updating chart:', error);
     }
@@ -435,6 +611,21 @@ function generateChartColors(count) {
     return result;
 }
 
+function getChartColor(index) {
+    const colors = [
+        '#2563eb',
+        '#ef4444',
+        '#10b981',
+        '#f59e0b',
+        '#8b5cf6',
+        '#ec4899',
+        '#06b6d4',
+        '#f97316'
+    ];
+
+    return colors[index % colors.length];
+}
+
 // Storage Operations
 function clearStorageConfirm() {
     if (confirm('¿Estás seguro de que quieres limpiar todos los datos?')) {
@@ -452,6 +643,22 @@ async function clearStorage() {
     } catch (error) {
         showErrorMessage('Error al limpiar el almacenamiento');
     }
+}
+
+function resetChartData() {
+    lastChartTimestamp = null;
+
+    Object.keys(chartSeries).forEach((key) => {
+        delete chartSeries[key];
+    });
+
+    if (!chart) {
+        return;
+    }
+
+    chart.data.labels = [];
+    chart.data.datasets = [];
+    chart.update('none');
 }
 
 
@@ -494,7 +701,122 @@ function showNotification(element) {
     }
 }
 
+
+async function refreshDashboardData() {
+    await Promise.all([
+        refreshStatus(),
+        refreshLatestPacket(),
+        loadRecentEvents(),
+        updateChartData(),
+        refreshDevices()
+    ]);
+}
+
+
+async function refreshDevices() {
+    const panel = document.getElementById('devices-panel');
+
+    if (!panel) {
+        return;
+    }
+
+    try {
+        const data = await apiCall('/api/devices');
+        renderDevices(data.devices || [], data.protocols || []);
+    } catch (error) {
+        panel.innerHTML = '<span class="error-message">Error al cargar dispositivos</span>';
+    }
+}
+
+function renderDevices(devices, protocols) {
+    const panel = document.getElementById('devices-panel');
+
+    if (!panel) {
+        return;
+    }
+
+    if (!devices || devices.length === 0) {
+        panel.innerHTML = `
+            <p style="color: var(--text-secondary);">No hay dispositivos detectados.</p>
+            <p><strong>Protocolos disponibles:</strong> ${protocols.join(', ') || 'Ninguno'}</p>
+        `;
+        return;
+    }
+
+    panel.innerHTML = devices
+        .map((device) => {
+            const deviceId = escapeHtml(device.device_id);
+            const protocol = escapeHtml(device.protocol);
+            const status = escapeHtml(device.status);
+            const connectedText = device.connected ? 'Sí' : 'No';
+
+            const actionButton = device.connected
+                ? `<button class="btn btn-danger" onclick="disconnectDevice('${deviceId}')">Desconectar</button>`
+                : `<button class="btn btn-success" onclick="connectDevice('${deviceId}')">Conectar</button>`;
+
+            return `
+                <div class="device-card">
+                    <h3>${deviceId}</h3>
+                    <p><strong>Protocolo:</strong> ${protocol}</p>
+                    <p><strong>Estado:</strong> ${status}</p>
+                    <p><strong>Conectado:</strong> ${connectedText}</p>
+                    <p><strong>Paquetes recibidos:</strong> ${device.packets_received ?? 0}</p>
+                    <p><strong>Última detección:</strong> ${formatDateTime(device.last_seen)}</p>
+                    ${actionButton}
+                </div>
+            `;
+        })
+        .join('');
+}
+
+async function connectDevice(deviceId) {
+    try {
+        await apiCall(`/api/devices/${encodeURIComponent(deviceId)}/connect`, {
+            method: 'POST'
+        });
+
+        showSuccessMessage(`Dispositivo ${deviceId} conectado`);
+        await refreshDevices();
+        await refreshLatestPacket();
+        await updateChartData();
+    } catch (error) {
+        console.error('Error connecting device:', error);
+        showErrorMessage(`Error al conectar ${deviceId}`);
+    }
+}
+
+async function disconnectDevice(deviceId) {
+    try {
+        await apiCall(`/api/devices/${encodeURIComponent(deviceId)}/disconnect`, {
+            method: 'POST'
+        });
+
+        showSuccessMessage(`Dispositivo ${deviceId} desconectado`);
+        await refreshDevices();
+    } catch (error) {
+        console.error('Error disconnecting device:', error);
+        showErrorMessage(`Error al desconectar ${deviceId}`);
+    }
+}
+
+
+function formatDateTime(value) {
+    if (!value) {
+        return 'N/A';
+    }
+
+    try {
+        return new Date(value).toLocaleString('es-ES');
+    } catch (error) {
+        return value;
+    }
+}
+
+
+
 // Handle page unload
 window.addEventListener('beforeunload', () => {
-    if (refreshIntervalId) clearInterval(refreshIntervalId);
+    if (realtimeTimer !== null) {
+        clearInterval(realtimeTimer);
+    }
 });

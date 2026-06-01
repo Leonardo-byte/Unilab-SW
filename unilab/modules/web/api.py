@@ -219,6 +219,9 @@ def create_app(unilab_app: UniLabApp) -> FastAPI:
         min_value = payload.get("min")
         max_value = payload.get("max")
 
+        comment_below = payload.get("comment_below")
+        comment_above = payload.get("comment_above")
+
         if not variable:
             raise ValueError("El campo 'variable' es obligatorio.")
 
@@ -226,6 +229,8 @@ def create_app(unilab_app: UniLabApp) -> FastAPI:
             measurement_name=variable,
             min_value=min_value,
             max_value=max_value,
+            comment_below=comment_below,
+            comment_above=comment_above,
         )
 
         return {
@@ -281,6 +286,155 @@ def create_app(unilab_app: UniLabApp) -> FastAPI:
         return {
             "app": unilab_app.get_status(),
             "modules": unilab_app.get_modules_status(),
+        }
+    
+    @app.get("/api/devices")
+    def get_devices(request: Request) -> dict[str, Any]:
+        storage = get_storage(request)
+
+        return {
+            "protocols": ["udp"],
+            "devices": storage.get_devices(),
+        }
+
+
+    @app.post("/api/devices/{device_id}/connect")
+    def connect_device(
+        device_id: str,
+        request: Request,
+    ) -> dict[str, Any]:
+        storage = get_storage(request)
+        storage.connect_device(device_id)
+
+        return {
+            "message": "Dispositivo conectado correctamente.",
+            "device_id": device_id,
+            "devices": storage.get_devices(),
+        }
+
+
+    @app.post("/api/devices/{device_id}/disconnect")
+    def disconnect_device(
+        device_id: str,
+        request: Request,
+    ) -> dict[str, Any]:
+        storage = get_storage(request)
+        storage.disconnect_device(device_id)
+
+        return {
+            "message": "Dispositivo desconectado correctamente.",
+            "device_id": device_id,
+            "devices": storage.get_devices(),
+        }
+    
+    @app.get("/api/protocols")
+    def get_protocols() -> dict[str, Any]:
+        """
+        Retorna los protocolos disponibles en UniLab.
+        """
+        return {
+            "protocols": [
+                {
+                    "name": "udp",
+                    "available": True,
+                    "description": "Recepción de paquetes JSON por UDP.",
+                },
+                {
+                    "name": "serial",
+                    "available": False,
+                    "description": "Pendiente de implementación.",
+                },
+                {
+                    "name": "tcp",
+                    "available": False,
+                    "description": "Pendiente de implementación.",
+                },
+            ]
+        }
+
+
+    @app.get("/api/protocols/udp")
+    def get_udp_protocol_status(request: Request) -> dict[str, Any]:
+        """
+        Retorna el estado lógico del protocolo UDP.
+        """
+        storage = get_storage(request)
+
+        return {
+            "protocol": "udp",
+            "available": True,
+            "description": "Recepción de paquetes JSON por UDP.",
+            "devices_detected": len(storage.get_devices(protocol="udp")),
+            "devices_connected": len(
+                [
+                    device
+                    for device in storage.get_devices(protocol="udp")
+                    if device.get("connected") is True
+                ]
+            ),
+            "devices": storage.get_devices(protocol="udp"),
+        }
+
+
+    @app.get("/api/devices")
+    def get_devices(request: Request) -> dict[str, Any]:
+        """
+        Retorna todos los dispositivos detectados.
+        """
+        storage = get_storage(request)
+
+        return {
+            "protocols": ["udp"],
+            "devices": storage.get_devices(),
+        }
+
+
+    @app.get("/api/devices/udp")
+    def get_udp_devices(request: Request) -> dict[str, Any]:
+        """
+        Retorna solo los dispositivos detectados por UDP.
+        """
+        storage = get_storage(request)
+
+        return {
+            "protocol": "udp",
+            "devices": storage.get_devices(protocol="udp"),
+        }
+
+
+    @app.post("/api/devices/{device_id}/connect")
+    def connect_device(
+        device_id: str,
+        request: Request,
+    ) -> dict[str, Any]:
+        """
+        Conecta lógicamente un dispositivo detectado.
+        """
+        storage = get_storage(request)
+        storage.connect_device(device_id)
+
+        return {
+            "message": "Dispositivo conectado correctamente.",
+            "device_id": device_id,
+            "devices": storage.get_devices(),
+        }
+
+
+    @app.post("/api/devices/{device_id}/disconnect")
+    def disconnect_device(
+        device_id: str,
+        request: Request,
+    ) -> dict[str, Any]:
+        """
+        Desconecta lógicamente un dispositivo.
+        """
+        storage = get_storage(request)
+        storage.disconnect_device(device_id)
+
+        return {
+            "message": "Dispositivo desconectado correctamente.",
+            "device_id": device_id,
+            "devices": storage.get_devices(),
         }
 
     return app

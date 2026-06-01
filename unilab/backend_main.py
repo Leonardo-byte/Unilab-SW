@@ -88,6 +88,18 @@ def acquisition_loop(unilab_app: UniLabApp) -> None:
             if packet is None:
                 continue
 
+            storage.register_device(
+                device_id=packet.source,
+                protocol="udp",
+            )
+
+            if not storage.is_device_connected(packet.source):
+                print(
+                    f"[Backend] Dispositivo detectado pero no conectado: "
+                    f"{packet.source}"
+                )
+                continue
+
             events = safety.validate_packet(packet)
 
             storage.save_packet(packet)
