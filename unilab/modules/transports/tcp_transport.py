@@ -43,10 +43,8 @@ class TcpTransport(TransportBase):
 
     def open(self) -> None:
         """
-        Crea el servidor TCP y espera una conexión de cliente.
-
-        Raises:
-            RuntimeError: Si no se puede abrir el socket o el cliente no conecta.
+        Crea el servidor TCP, pero no espera obligatoriamente
+        a que el cliente se conecte durante el arranque.
         """
         try:
             self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -55,16 +53,10 @@ class TcpTransport(TransportBase):
             self._server_socket.listen(1)
             self._server_socket.settimeout(self._timeout)
 
-            self._client_socket, _ = self._server_socket.accept()
-            self._client_socket.settimeout(self._timeout)
+            self._client_socket = None
+            self._recv_buffer = b""
             self._is_open = True
 
-        except socket.timeout as error:
-            self._is_open = False
-            raise RuntimeError(
-                f"Ningún cliente TCP se conectó a {self._host}:{self._port} "
-                f"dentro del timeout de {self._timeout}s."
-            ) from error
         except OSError as error:
             self._is_open = False
             raise RuntimeError(
@@ -94,29 +86,47 @@ class TcpTransport(TransportBase):
 
     def receive(self, buffer_size: int = 4096) -> bytes | None:
         """
-        Lee una línea completa (terminada en \\n) del cliente TCP.
-
-        Retorna:
-            bytes: La línea recibida sin el newline.
-            None: Si no llegaron datos (timeout).
-
-        Raises:
-            RuntimeError: Si el socket no está abierto o el cliente se desconectó.
+        Acepta un cliente TCP cuando aparezca y lee una línea completa
+        terminada en newline.
         """
-        if self._client_socket is None or not self._is_open:
+        if self._server_socket is None or not self._is_open:
             raise RuntimeError("El transporte TCP no está abierto.")
 
         try:
+            if self._client_socket is None:
+                try:
+                    self._client_socket, _ = self._server_socket.accept()
+                    self._client_socket.settimeout(self._timeout)
+                    self._recv_buffer = b""
+                except socket.timeout:
+                    return None
+
             while b"\n" not in self._recv_buffer:
                 chunk = self._client_socket.recv(buffer_size or self._buffer_size)
+
                 if not chunk:
-                    raise RuntimeError("El cliente TCP se desconectó.")
+                    self._client_socket.close()
+                    self._client_socket = None
+                    self._recv_buffer = b""
+                    return None
+
                 self._recv_buffer += chunk
 
             line, self._recv_buffer = self._recv_buffer.split(b"\n", 1)
             return line.strip()
 
         except socket.timeout:
+            return None
+
+        except OSError:
+            if self._client_socket is not None:
+                try:
+                    self._client_socket.close()
+                except Exception:
+                    pass
+
+            self._client_socket = None
+            self._recv_buffer = b""
             return None
 
     def send(self, data: bytes) -> None:
