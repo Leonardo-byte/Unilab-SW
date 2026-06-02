@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: unilab-frontend
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: unilab-frontend
+
+  template:
+    metadata:
+      labels:
+        app: unilab-frontend
+
+    spec:
+      containers:
+        - name: frontend
+
+          image: proyectosw-frontend:latest
+          imagePullPolicy: Never
+
+          ports:
+            - containerPort: 80
