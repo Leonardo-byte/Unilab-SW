@@ -288,19 +288,6 @@ def create_app(unilab_app: UniLabApp) -> FastAPI:
             "modules": unilab_app.get_modules_status(),
         }
     
-<<<<<<< HEAD
-    @app.get("/api/devices")
-    def get_devices(request: Request) -> dict[str, Any]:
-        storage = get_storage(request)
-
-        return {
-            "protocols": ["udp"],
-            "devices": storage.get_devices(),
-        }
-
-
-=======
->>>>>>> main
     @app.post("/api/devices/{device_id}/connect")
     def connect_device(
         device_id: str,
@@ -387,11 +374,7 @@ def create_app(unilab_app: UniLabApp) -> FastAPI:
         storage = get_storage(request)
 
         return {
-<<<<<<< HEAD
-            "protocols": ["udp"],
-=======
             "protocols": ["udp","tcp"],
->>>>>>> main
             "devices": storage.get_devices(),
         }
 
@@ -407,8 +390,6 @@ def create_app(unilab_app: UniLabApp) -> FastAPI:
             "protocol": "udp",
             "devices": storage.get_devices(protocol="udp"),
         }
-<<<<<<< HEAD
-=======
     
     @app.get("/api/devices/tcp")
     def get_tcp_devices(request: Request) -> dict[str, Any]:
@@ -421,7 +402,6 @@ def create_app(unilab_app: UniLabApp) -> FastAPI:
             "protocol": "tcp",
             "devices": storage.get_devices(protocol="tcp"),
         }
->>>>>>> main
 
 
     @app.post("/api/devices/{device_id}/connect")
