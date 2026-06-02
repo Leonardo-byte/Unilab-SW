@@ -20,7 +20,7 @@ spec:
       containers:
         - name: frontend
 
-          image: unilab-sw-frontend:latest
+          image: proyectosw-frontend:latest
           imagePullPolicy: Never
 
           ports:

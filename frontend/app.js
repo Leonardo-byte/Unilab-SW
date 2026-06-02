@@ -364,6 +364,7 @@ async function loadRecentPackets() {
                 <thead>
                     <tr>
                         <th>Timestamp</th>
+                        <th>Dispositivos</th>
                         <th>Sensor</th>
                         <th>Variables</th>
                         <th>Detalles</th>
@@ -382,18 +383,33 @@ async function loadRecentPackets() {
 }
 
 function formatPacketRow(packet) {
-    const timestamp = packet.timestamp ? new Date(packet.timestamp).toLocaleString('es-ES') : 'N/A';
-    const sensor = packet.sensor || 'N/A';
-    const variableCount = packet.measurements ? packet.measurements.length : 0;
-    
-    return `
-        <tr>
-            <td>${escapeHtml(timestamp)}</td>
-            <td>${escapeHtml(sensor)}</td>
-            <td>${variableCount}</td>
-            <td><button class="btn btn-primary" onclick="console.log(this)">Ver</button></td>
-        </tr>
-    `;
+  const timestamp = packet.timestamp
+    ? new Date(packet.timestamp).toLocaleString('es-ES')
+    : 'N/A';
+
+  const deviceId =
+    packet.device_id ||
+    packet.source ||
+    packet.sensor ||
+    'N/A';
+
+  const protocol =
+    packet.protocol ||
+    'N/A';
+
+  const variableCount = packet.measurements
+    ? packet.measurements.length
+    : 0;
+
+  return `
+    <tr>
+      <td>${escapeHtml(timestamp)}</td>
+      <td>${escapeHtml(deviceId)}</td>
+      <td>${escapeHtml(protocol)}</td>
+      <td>${variableCount}</td>
+      <td><button onclick='showPacketDetails(${JSON.stringify(packet)})'>Ver</button></td>
+    </tr>
+  `;
 }
 
 // Chart
