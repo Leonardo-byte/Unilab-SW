@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: unilab-backend-service
+
+spec:
+  selector:
+    app: unilab-backend
+
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8000
+      targetPort: 8000
+      nodePort: 32296
+
+    - name: udp-telemetry
+      protocol: UDP
+      port: 5005
+      targetPort: 5005
+      nodePort: 30383
+
+  type: NodePort
