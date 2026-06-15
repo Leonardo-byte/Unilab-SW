@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 
 metadata:
-  name: unilab-frontend-service
+  name: frontend
 
 spec:
   selector:
