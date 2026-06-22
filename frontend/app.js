@@ -83,10 +83,13 @@ function startAutoRefresh() {
 
 // API Calls
 async function apiCall(endpoint, options = {}) {
+    const token = getAuthToken();
+
     const defaultOptions = {
         method: 'GET',
         headers: {
             'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         }
     };
     
@@ -95,7 +98,14 @@ async function apiCall(endpoint, options = {}) {
     
     try {
         const response = await fetch(url, fetchOptions);
-        
+
+        if (response.status === 401) {
+            localStorage.removeItem(AUTH_TOKEN_KEY);
+            localStorage.removeItem(AUTH_USER_KEY);
+            window.location.replace('/login.html');
+            throw new Error('Sesión expirada');
+        }
+
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -550,4 +560,23 @@ function displayCurrentUser() {
         // Si el dato guardado en localStorage está corrupto o inválido, no hace nada
         console.error('Error al procesar el usuario actual:', error);
     }
+}
+
+
+/**
+ * Cierra la sesión del usuario: invalida el token en el backend,
+ * limpia el localStorage y redirige al login.
+ */
+function logout() {
+    const token = getAuthToken();
+
+    fetch(`${API_BASE_URL}/api/auth/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
+    }).catch(() => {});
+
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    localStorage.removeItem(AUTH_USER_KEY);
+    window.location.replace('/login.html');
 }
