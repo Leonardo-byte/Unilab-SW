@@ -90,7 +90,7 @@ class SerialTransport(TransportBase):
 
         try:
             line = self._serial.readline()
-            return line.strip() if line else None
+            return line.rstrip(b"\r\n") if line else None
         except Exception as error:
             raise RuntimeError(
                 f"Error al leer del puerto serial '{self._port}': {error}"
@@ -107,13 +107,32 @@ class SerialTransport(TransportBase):
             raise RuntimeError("El transporte serial no está abierto.")
 
         self._serial.write(data)
+        self._serial.flush()
 
     def get_status(self) -> dict[str, Any]:
         status = super().get_status()
-        status.update({
-            "port": self._port,
-            "baudrate": self._baudrate,
-            "timeout": self._timeout,
-            "in_waiting": self._serial.in_waiting if self._serial else 0,
-        })
+
+        try:
+            in_waiting = self._serial.in_waiting if self._serial else 0
+            serial_is_open = self._serial.is_open if self._serial else False
+        except Exception:
+            in_waiting = 0
+            serial_is_open = False
+
+        status.update(
+            {
+                "port": self._port,
+                "baudrate": self._baudrate,
+                "timeout": self._timeout,
+                "is_open": self._is_open,
+                "serial_is_open": serial_is_open,
+                "in_waiting": in_waiting,
+            }
+        )
+
         return status
+    
+    def send_line(self, data: bytes) -> None:
+        if not data.endswith(b"\n"):
+            data += b"\n"
+        self.send(data)
