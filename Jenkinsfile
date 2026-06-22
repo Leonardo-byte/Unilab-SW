@@ -7,7 +7,7 @@ pipeline {
     }
 
     environment {
-        APP_DIR = '/opt/unilab'
+        APP_DIR = '/home/usuario-pi/apps/Unilab-SW'
     }
 
     stages {
@@ -16,6 +16,8 @@ pipeline {
                 dir("${APP_DIR}") {
                     sh '''
                         set -eu
+
+                        git config --global --add safe.directory "${APP_DIR}"
 
                         git fetch --prune origin
                         git checkout main
@@ -41,8 +43,7 @@ pipeline {
                 dir("${APP_DIR}") {
                     sh '''
                         set -eu
-                        docker compose run --rm --no-deps backend \
-                          python -m pytest -q
+                        docker compose exec -T backend python -m pytest -q
                     '''
                 }
             }
