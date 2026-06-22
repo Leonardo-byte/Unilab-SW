@@ -7,3 +7,9 @@ class Settings:
     debug: bool = True
     database_url: str = "sqlite:///unilab.db"
     modules_path: str = "unilab.modules"
+
+    # Configuración ESP32 serial
+    esp32_port: str = "COM3"        # Windows ejemplo
+    esp32_baudrate: int = 115200
+    esp32_timeout: float = 1.0
+    esp32_source: str = "esp32_01"
