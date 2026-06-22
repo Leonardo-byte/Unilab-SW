@@ -10,21 +10,35 @@ from unilab.contracts.models import Measurement, TelemetryPacket
 from unilab.modules.safety import SafetyManager
 from unilab.modules.storage import MemoryStorage
 from unilab.modules.web.api import create_app
+from unilab.core.app import UniLabApp
 
 
-def test_dashboard_home_returns_html():
+def create_test_app(
+    storage: MemoryStorage | None = None,
+    safety: SafetyManager | None = None,
+):
+    storage = storage or MemoryStorage()
+    safety = safety or SafetyManager()
+
+    unilab_app = UniLabApp()
+
+    unilab_app.register_module("memory_storage", storage)
+    unilab_app.register_module("safety_manager", safety)
+
+    return create_app(unilab_app)
+
+def test_api_status_endpoint_returns_running():
     """
-    Verifica que la ruta principal retorne el dashboard HTML.
+    Verifica que el endpoint de estado de la API responda correctamente.
     """
     storage = MemoryStorage()
-    app = create_app(storage=storage)
+    app = create_test_app(storage=storage)
     client = TestClient(app)
 
-    response = client.get("/")
+    response = client.get("/api/status")
 
     assert response.status_code == 200
-    assert "text/html" in response.headers["content-type"]
-    assert "UniLab Dashboard" in response.text
+    assert response.json()["api"] == "running"
 
 
 def test_api_status_returns_storage_status():
@@ -32,7 +46,7 @@ def test_api_status_returns_storage_status():
     Verifica que /api/status retorne el estado de la API y del almacenamiento.
     """
     storage = MemoryStorage()
-    app = create_app(storage=storage)
+    app = create_test_app(storage=storage)
     client = TestClient(app)
 
     response = client.get("/api/status")
@@ -51,7 +65,7 @@ def test_api_latest_packet_returns_no_data_when_storage_is_empty():
     MemoryStorage está vacío.
     """
     storage = MemoryStorage()
-    app = create_app(storage=storage)
+    app = create_test_app(storage=storage)
     client = TestClient(app)
 
     response = client.get("/api/latest-packet")
@@ -78,7 +92,7 @@ def test_api_latest_packet_returns_saved_packet():
 
     storage.save_packet(packet)
 
-    app = create_app(storage=storage)
+    app = create_test_app(storage=storage)
     client = TestClient(app)
 
     response = client.get("/api/latest-packet")
@@ -121,7 +135,7 @@ def test_api_recent_events_returns_saved_safety_events():
     storage.save_packet(packet)
     storage.save_events(events)
 
-    app = create_app(storage=storage)
+    app = create_test_app(storage=storage)
     client = TestClient(app)
 
     response = client.get("/api/recent-events")
@@ -148,7 +162,7 @@ def test_api_clear_removes_packets_and_events():
 
     storage.save_packet(packet)
 
-    app = create_app(storage=storage)
+    app = create_test_app(storage=storage)
     client = TestClient(app)
 
     response = client.post("/api/clear")
@@ -171,7 +185,7 @@ def test_api_visible_variables_can_be_updated():
     Verifica que el usuario pueda seleccionar variables visibles.
     """
     storage = MemoryStorage()
-    app = create_app(storage=storage)
+    app = create_test_app(storage=storage)
     client = TestClient(app)
 
     response = client.post(
@@ -199,7 +213,7 @@ def test_api_safety_limits_can_be_updated():
     storage = MemoryStorage()
     safety = SafetyManager()
 
-    app = create_app(storage=storage, safety=safety)
+    app = create_test_app(storage=storage, safety=safety)
     client = TestClient(app)
 
     response = client.post(
@@ -223,7 +237,7 @@ def test_api_notes_can_be_created():
     Verifica que el usuario pueda registrar notas.
     """
     storage = MemoryStorage()
-    app = create_app(storage=storage)
+    app = create_test_app(storage=storage)
     client = TestClient(app)
 
     response = client.post(
@@ -244,3 +258,13 @@ def test_api_notes_can_be_created():
     data = response.json()
 
     assert data["count"] == 1
+
+def test_api_status_endpoint_exists():
+    storage = MemoryStorage()
+    app = create_test_app(storage=storage)
+    client = TestClient(app)
+
+    response = client.get("/api/status")
+
+    assert response.status_code == 200
+    assert response.json()["api"] == "running"

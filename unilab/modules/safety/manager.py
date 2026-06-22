@@ -59,8 +59,8 @@ class SafetyManager:
         self.limits = limits or {}
         self._is_setup = False
 
-    def validate_packet(self, packet) -> list:
-        events = []
+    def validate_packet(self, packet: TelemetryPacket) -> list[Event]:
+        events: list[Event] = []
 
         for measurement in packet.measurements:
             variable = measurement.variable
@@ -75,26 +75,28 @@ class SafetyManager:
 
             if min_value is not None and value < min_value:
                 comment = limit.get("comment_below") or (
-                    f"{variable} por debajo del límite mínimo."
+                    f"La medición '{variable}' está por debajo del límite mínimo. "
+                    f"Valor recibido: {value}. Límite mínimo: {min_value}."
                 )
 
                 events.append(
                     self._build_fault_event(
-                        packet=packet,
                         measurement=measurement,
+                        source=packet.source,
                         message=comment,
                     )
                 )
 
             if max_value is not None and value > max_value:
                 comment = limit.get("comment_above") or (
-                    f"{variable} por encima del límite máximo."
+                    f"La medición '{variable}' está por encima del límite máximo. "
+                    f"Valor recibido: {value}. Límite máximo: {max_value}."
                 )
 
                 events.append(
                     self._build_fault_event(
-                        packet=packet,
                         measurement=measurement,
+                        source=packet.source,
                         message=comment,
                     )
                 )
