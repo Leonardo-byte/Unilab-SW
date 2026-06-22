@@ -66,17 +66,18 @@ pipeline {
                     sh '''
                         set -eu
 
-                        for intento in $(seq 1 20); do
-                            if curl -fsS http://localhost:8000/api/status; then
-                                echo
+                        for i in $(seq 1 20); do
+                            if docker compose exec -T backend \
+                                curl -fsS http://localhost:8000/api/status; then
                                 echo "Backend operativo."
                                 exit 0
                             fi
 
-                            echo "Esperando backend: ${intento}/20"
+                            echo "Esperando backend: $i/20"
                             sleep 3
                         done
 
+                        echo "El backend no respondió dentro del tiempo esperado."
                         exit 1
                     '''
                 }
