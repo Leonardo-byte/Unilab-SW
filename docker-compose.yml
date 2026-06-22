@@ -36,6 +36,8 @@ services:
       - "8000:8000"
       - "5005:5005/tcp"
       - "5006:5005/udp" # modificar a 5005 cuando se vuelva a usar docker
+    devices:
+    - "/dev/ttyUSB0:/dev/ttyUSB0"
     environment:
       - ENVIRONMENT=production
       - LOG_LEVEL=info

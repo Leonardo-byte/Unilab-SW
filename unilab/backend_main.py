@@ -12,7 +12,12 @@ from typing import cast
 import uvicorn
 
 from unilab.core.app import UniLabApp
-from unilab.modules.acquisition import UdpJsonReceiver,TcpJsonReceiver
+from unilab.modules.acquisition import (
+    UdpJsonReceiver,
+    TcpJsonReceiver,
+    SerialJsonReceiver,
+)
+
 from unilab.modules.safety import SafetyManager
 from unilab.modules.storage import MemoryStorage
 from unilab.modules.web.api import create_app
@@ -23,6 +28,10 @@ UDP_PORT = 5005
 
 TCP_HOST = "0.0.0.0"
 TCP_PORT = 5005
+
+SERIAL_PORT = "/dev/ttyUSB0"
+SERIAL_BAUDRATE = 115200
+SERIAL_RECEIVER_NAME = "serial_receiver"
 
 WEB_HOST = "0.0.0.0"
 WEB_PORT = 8000
@@ -64,11 +73,23 @@ def build_runtime() -> UniLabApp:
     config=tcp_receiver_config,
     )
 
+    serial_receiver_config = {
+        "port": SERIAL_PORT,
+        "baudrate": SERIAL_BAUDRATE,
+        "timeout": 1.0,
+    }
+
+    serial_receiver = SerialJsonReceiver(
+        name=SERIAL_RECEIVER_NAME,
+        config=serial_receiver_config,
+    )
+
     safety = SafetyManager(name=SAFETY_MANAGER_NAME)
     storage = MemoryStorage(name=MEMORY_STORAGE_NAME)
 
     unilab_app.register_module(UDP_RECEIVER_NAME, udp_receiver)
     unilab_app.register_module(TCP_RECEIVER_NAME, tcp_receiver)
+    unilab_app.register_module(SERIAL_RECEIVER_NAME, serial_receiver)
     unilab_app.register_module(SAFETY_MANAGER_NAME, safety)
     unilab_app.register_module(MEMORY_STORAGE_NAME, storage)
 
@@ -159,6 +180,11 @@ def main() -> None:
             unilab_app.get_module(TCP_RECEIVER_NAME),
         )
 
+        serial_receiver = cast(
+            SerialJsonReceiver,
+            unilab_app.get_module(SERIAL_RECEIVER_NAME),
+        )
+
         print(
             f"[UniLab Backend] UdpJsonReceiver configurado en "
             f"{UDP_HOST}:{UDP_PORT}"
@@ -169,8 +195,14 @@ def main() -> None:
             f"{TCP_HOST}:{TCP_PORT}"
         )
 
+        print(
+            f"[UniLab Backend] SerialJsonReceiver configurado en "
+            f"{SERIAL_PORT} a {SERIAL_BAUDRATE} baud"
+        )
+
         udp_receiver.start()
         tcp_receiver.start()
+        serial_receiver.start()
 
 
         # Crea aplicacion
@@ -188,10 +220,17 @@ def main() -> None:
             daemon=True,
         )
 
+        serial_thread = threading.Thread(
+            target=acquisition_loop,
+            args=(unilab_app, SERIAL_RECEIVER_NAME, "serial"),
+            daemon=True,
+        )
+
         udp_thread.start()
         tcp_thread.start()
+        serial_thread.start()
 
-        print("[UniLab Backend] Threads de adquisición UDP y TCP iniciados.")
+        print("[UniLab Backend] Threads de adquisición UDP, TCP y Serial iniciados.")
         print("[UniLab Backend] Thread de adquisición iniciado.")
 
         print(f"[UniLab Backend] Uvicorn servidor en {WEB_HOST}:{WEB_PORT}")
