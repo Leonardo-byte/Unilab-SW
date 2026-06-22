@@ -2,6 +2,10 @@
 const API_BASE_URL = '';
 const REFRESH_INTERVAL = 3000; // 3 seconds
 
+// Configuración para el almacenamiento de credenciales y sesión en el navegador
+const AUTH_TOKEN_KEY = 'unilab_token';
+const AUTH_USER_KEY = 'unilab_user';
+
 // Global variables
 let chart = null;
 let selectedVariables = new Set();
@@ -10,7 +14,14 @@ let refreshIntervalId = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
+    // Detiene la carga del dashboard y redirige al login si el usuario no está autenticado
+    if (!requireAuth()) return;
+
     console.log('Dashboard initialized');
+
+    // Muestra el nombre del usuario logueado en la interfaz
+    displayCurrentUser();
+
     initializeDashboard();
 });
 
@@ -498,3 +509,45 @@ function showNotification(element) {
 window.addEventListener('beforeunload', () => {
     if (refreshIntervalId) clearInterval(refreshIntervalId);
 });
+
+// --- Funciones de Gestión de Autenticación ---
+
+/**
+ * Recupera el token Bearer almacenado en la sesión local.
+ */
+function getAuthToken() {
+    return localStorage.getItem(AUTH_TOKEN_KEY);
+}
+
+/**
+ * Valida la existencia del token. Si no existe, redirige al usuario a la vista de login.
+ * Retorna true si está autenticado, false en caso contrario.
+ */
+function requireAuth() {
+    const token = getAuthToken();
+
+    if (!token) {
+        window.location.href = 'login.html';
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Intenta leer los datos del usuario logueado e inyectar su nombre en el elemento HTML id="current-user".
+ */
+function displayCurrentUser() {
+    const userEl = document.getElementById('current-user');
+    const stored = localStorage.getItem(AUTH_USER_KEY);
+
+    if (!userEl || !stored) return;
+
+    try {
+        const user = JSON.parse(stored);
+        userEl.textContent = user.username;
+    } catch (error) {
+        // Si el dato guardado en localStorage está corrupto o inválido, no hace nada
+        console.error('Error al procesar el usuario actual:', error);
+    }
+}

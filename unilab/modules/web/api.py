@@ -22,20 +22,31 @@ MemoryStorage
 FastAPI / Dashboard
 """
 
+from pathlib import Path
 from typing import Any, cast
 
-from fastapi import Body, FastAPI, Request
+from fastapi import Body, FastAPI, Request, HTTPException
+from fastapi.responses import HTMLResponse
 
 from unilab.core.app import UniLabApp
 from unilab.modules.safety import SafetyManager
 from unilab.modules.storage import MemoryStorage
 
+# nuevo modulo 
+from unilab.modules.auth import AuthManager
+
 
 SAFETY_MANAGER_NAME = "safety_manager"
 MEMORY_STORAGE_NAME = "memory_storage"
+AUTH_MANAGER_NAME = "auth_manager" # 
+TEMPLATE_FILE = Path(__file__).resolve().parent / "templates" / "dashboard.html"
 
 
-def create_app(unilab_app: UniLabApp) -> FastAPI:
+def create_app(
+    unilab_app: UniLabApp | None = None,
+    storage: MemoryStorage | None = None,
+    safety: SafetyManager | None = None,
+) -> FastAPI:
     """
     Crea la aplicación FastAPI de UniLab usando UniLabApp como fuente
     de módulos registrados.
@@ -47,6 +58,25 @@ def create_app(unilab_app: UniLabApp) -> FastAPI:
     )
 
     app.state.unilab_app = unilab_app
+
+    if unilab_app is not None:
+        app.state.unilab_app = unilab_app
+    else:
+        if storage is None:
+            storage = MemoryStorage()
+        if safety is None:
+            safety = SafetyManager()
+
+        app.state.unilab_app = UniLabApp()
+        app.state.unilab_app.register_module(MEMORY_STORAGE_NAME, storage)
+        app.state.unilab_app.register_module(SAFETY_MANAGER_NAME, safety)
+
+    @app.get("/", response_class=HTMLResponse)
+    def dashboard(request: Request) -> Any:
+        with TEMPLATE_FILE.open("r", encoding="utf-8") as template_file:
+            html = template_file.read()
+
+        return HTMLResponse(content=html, status_code=200)
 
     @app.get("/api/status")
     def get_status(request: Request) -> dict[str, Any]:
@@ -282,6 +312,129 @@ def create_app(unilab_app: UniLabApp) -> FastAPI:
             "app": unilab_app.get_status(),
             "modules": unilab_app.get_modules_status(),
         }
+    
+    # autenticacion
+    @app.post("/api/auth/login")
+    def login(
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        """
+        Verifica usuario/contraseña y, si son correctos, devuelve un
+        token de sesión que el frontend debe enviar en el header
+        'Authorization: Bearer <token>' en las siguientes peticiones.
+        """
+        current_auth = get_auth(request)
+
+        username = (payload.get("username") or "").strip()
+        password = payload.get("password") or ""
+
+        if not username or not password:
+            raise HTTPException(
+                status_code=400,
+                detail="Usuario y contraseña son obligatorios.",
+            )
+
+        user = current_auth.authenticate(username=username, password=password)
+
+        if user is None:
+            raise HTTPException(
+                status_code=401,
+                detail="Usuario o contraseña incorrectos.",
+            )
+
+        token, expires_at = current_auth.create_session(user)
+
+        return {
+            "token": token,
+            "expires_at": expires_at.isoformat(),
+            "user": {
+                "username": user.username,
+                "email": user.email,
+            },
+        }
+
+    @app.post("/api/auth/register")
+    def register(
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        """
+        Registra un nuevo usuario. Pensado para crear cuentas de equipo
+        rápidamente durante el desarrollo/demo.
+        """
+        current_auth = get_auth(request)
+
+        username = (payload.get("username") or "").strip()
+        password = payload.get("password") or ""
+        email = payload.get("email")
+
+        if not username or not password:
+            raise HTTPException(
+                status_code=400,
+                detail="Usuario y contraseña son obligatorios.",
+            )
+
+        if len(password) < 6:
+            raise HTTPException(
+                status_code=400,
+                detail="La contraseña debe tener al menos 6 caracteres.",
+            )
+
+        try:
+            user = current_auth.register_user(
+                username=username,
+                password=password,
+                email=email,
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+        return {
+            "message": "Usuario registrado correctamente.",
+            "user": {
+                "username": user.username,
+                "email": user.email,
+            },
+        }
+
+    @app.post("/api/auth/logout")
+    def logout(
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        """
+        Invalida el token de sesión enviado.
+        """
+        current_auth = get_auth(request)
+        token = payload.get("token") or ""
+
+        current_auth.revoke_session(token)
+
+        return {"message": "Sesión cerrada correctamente."}
+
+    @app.get("/api/auth/me")
+    def me(request: Request) -> dict[str, Any]:
+        """
+        Devuelve el usuario asociado al token enviado en el header
+        Authorization. Útil para que el frontend valide la sesión
+        al cargar el dashboard.
+        """
+        current_auth = get_auth(request)
+        token = _extract_bearer_token(request)
+
+        if not token:
+            raise HTTPException(status_code=401, detail="No autenticado.")
+
+        user = current_auth.get_user_from_token(token)
+
+        if user is None:
+            raise HTTPException(status_code=401, detail="Sesión inválida o expirada.")
+
+        return {
+            "username": user.username,
+            "email": user.email,
+        }
 
     return app
 
@@ -316,6 +469,28 @@ def get_safety(request: Request) -> SafetyManager:
         unilab_app.get_module(SAFETY_MANAGER_NAME),
     )
 
+#autenticacion
+def get_auth(request: Request) -> AuthManager:
+    """
+    Obtiene el módulo AuthManager desde el core.
+    """
+    unilab_app = get_unilab_app(request)
+
+    return cast(
+        AuthManager,
+        unilab_app.get_module(AUTH_MANAGER_NAME),
+    )
+
+def _extract_bearer_token(request: Request) -> str | None:
+    """
+    Extrae el token del header 'Authorization: Bearer <token>'.
+    """
+    auth_header = request.headers.get("Authorization", "")
+
+    if auth_header.startswith("Bearer "):
+        return auth_header[len("Bearer ") :]
+
+    return None
 
 def _filter_packet_dict(
     packet_dict: dict[str, Any],

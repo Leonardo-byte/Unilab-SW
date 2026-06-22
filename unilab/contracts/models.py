@@ -190,3 +190,51 @@ class TelemetryPacket(BaseModel):
         default_factory=dict,
         description="Información adicional opcional del paquete.",
     )
+
+# ---------------------------------------------------------------------------
+# Autenticación (agregado para la funcionalidad de login)
+# ---------------------------------------------------------------------------
+ 
+ 
+class User(BaseModel):
+    """
+    Representa un usuario del sistema.
+ 
+    Nunca incluye la contraseña ni su hash: este modelo es seguro
+    para devolver al cliente en respuestas de la API.
+    """
+ 
+    username: str = Field(
+        ...,
+        min_length=3,
+        description="Nombre de usuario único (no distingue mayúsculas/minúsculas).",
+    )
+ 
+    email: str | None = Field(
+        default=None,
+        description="Correo electrónico opcional del usuario.",
+    )
+ 
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="Marca de tiempo UTC en la que se creó el usuario.",
+    )
+ 
+ 
+class UserCredentials(BaseModel):
+    """
+    Credenciales enviadas por el cliente para iniciar sesión o registrarse.
+    """
+ 
+    username: str = Field(..., min_length=3)
+    password: str = Field(..., min_length=6)
+ 
+ 
+class LoginResponse(BaseModel):
+    """
+    Respuesta enviada al cliente tras un login exitoso.
+    """
+ 
+    token: str = Field(..., description="Token de sesión a usar en el header Authorization.")
+    expires_at: datetime = Field(..., description="Momento UTC en que expira el token.")
+    user: User

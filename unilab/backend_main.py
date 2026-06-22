@@ -17,6 +17,10 @@ from unilab.modules.safety import SafetyManager
 from unilab.modules.storage import MemoryStorage
 from unilab.modules.web.api import create_app
 
+#autenticacion
+from unilab.modules.auth import AuthManager
+
+
 
 UDP_HOST = "0.0.0.0"
 UDP_PORT = 5005
@@ -27,6 +31,8 @@ WEB_PORT = 8000
 UDP_RECEIVER_NAME = "udp_receiver"
 SAFETY_MANAGER_NAME = "safety_manager"
 MEMORY_STORAGE_NAME = "memory_storage"
+#autenticacion
+AUTH_MANAGER_NAME = "auth_manager"
 
 
 def build_runtime() -> UniLabApp:
@@ -49,10 +55,14 @@ def build_runtime() -> UniLabApp:
 
     safety = SafetyManager(name=SAFETY_MANAGER_NAME)
     storage = MemoryStorage(name=MEMORY_STORAGE_NAME)
+    #autenticacion
+    auth = AuthManager(name=AUTH_MANAGER_NAME)
 
     unilab_app.register_module(UDP_RECEIVER_NAME, receiver)
     unilab_app.register_module(SAFETY_MANAGER_NAME, safety)
     unilab_app.register_module(MEMORY_STORAGE_NAME, storage)
+    #
+    unilab_app.register_module(AUTH_MANAGER_NAME, auth)
 
     return unilab_app
 
