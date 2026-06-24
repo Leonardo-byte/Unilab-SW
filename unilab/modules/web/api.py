@@ -249,6 +249,9 @@ def create_app(
         min_value = payload.get("min")
         max_value = payload.get("max")
 
+        comment_below = payload.get("comment_below")
+        comment_above = payload.get("comment_above")
+
         if not variable:
             raise ValueError("El campo 'variable' es obligatorio.")
 
@@ -256,6 +259,8 @@ def create_app(
             measurement_name=variable,
             min_value=min_value,
             max_value=max_value,
+            comment_below=comment_below,
+            comment_above=comment_above,
         )
 
         return {
@@ -312,46 +317,34 @@ def create_app(
             "app": unilab_app.get_status(),
             "modules": unilab_app.get_modules_status(),
         }
-    
-    # autenticacion
+
+    # ------------------------------------------------------------------
+    # Autenticación
+    # ------------------------------------------------------------------
+
     @app.post("/api/auth/login")
     def login(
         request: Request,
         payload: dict[str, Any] = Body(...),
     ) -> dict[str, Any]:
-        """
-        Verifica usuario/contraseña y, si son correctos, devuelve un
-        token de sesión que el frontend debe enviar en el header
-        'Authorization: Bearer <token>' en las siguientes peticiones.
-        """
         current_auth = get_auth(request)
-
         username = (payload.get("username") or "").strip()
         password = payload.get("password") or ""
 
         if not username or not password:
-            raise HTTPException(
-                status_code=400,
-                detail="Usuario y contraseña son obligatorios.",
-            )
+            raise HTTPException(status_code=400, detail="Usuario y contraseña son obligatorios.")
 
         user = current_auth.authenticate(username=username, password=password)
 
         if user is None:
-            raise HTTPException(
-                status_code=401,
-                detail="Usuario o contraseña incorrectos.",
-            )
+            raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos.")
 
         token, expires_at = current_auth.create_session(user)
 
         return {
             "token": token,
             "expires_at": expires_at.isoformat(),
-            "user": {
-                "username": user.username,
-                "email": user.email,
-            },
+            "user": {"username": user.username, "email": user.email},
         }
 
     @app.post("/api/auth/register")
@@ -359,43 +352,25 @@ def create_app(
         request: Request,
         payload: dict[str, Any] = Body(...),
     ) -> dict[str, Any]:
-        """
-        Registra un nuevo usuario. Pensado para crear cuentas de equipo
-        rápidamente durante el desarrollo/demo.
-        """
         current_auth = get_auth(request)
-
         username = (payload.get("username") or "").strip()
         password = payload.get("password") or ""
         email = payload.get("email")
 
         if not username or not password:
-            raise HTTPException(
-                status_code=400,
-                detail="Usuario y contraseña son obligatorios.",
-            )
+            raise HTTPException(status_code=400, detail="Usuario y contraseña son obligatorios.")
 
         if len(password) < 6:
-            raise HTTPException(
-                status_code=400,
-                detail="La contraseña debe tener al menos 6 caracteres.",
-            )
+            raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 6 caracteres.")
 
         try:
-            user = current_auth.register_user(
-                username=username,
-                password=password,
-                email=email,
-            )
+            user = current_auth.register_user(username=username, password=password, email=email)
         except ValueError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
         return {
             "message": "Usuario registrado correctamente.",
-            "user": {
-                "username": user.username,
-                "email": user.email,
-            },
+            "user": {"username": user.username, "email": user.email},
         }
 
     @app.post("/api/auth/logout")
@@ -403,23 +378,13 @@ def create_app(
         request: Request,
         payload: dict[str, Any] = Body(...),
     ) -> dict[str, Any]:
-        """
-        Invalida el token de sesión enviado.
-        """
         current_auth = get_auth(request)
         token = payload.get("token") or ""
-
         current_auth.revoke_session(token)
-
         return {"message": "Sesión cerrada correctamente."}
 
     @app.get("/api/auth/me")
     def me(request: Request) -> dict[str, Any]:
-        """
-        Devuelve el usuario asociado al token enviado en el header
-        Authorization. Útil para que el frontend valide la sesión
-        al cargar el dashboard.
-        """
         current_auth = get_auth(request)
         token = _extract_bearer_token(request)
 
@@ -431,10 +396,7 @@ def create_app(
         if user is None:
             raise HTTPException(status_code=401, detail="Sesión inválida o expirada.")
 
-        return {
-            "username": user.username,
-            "email": user.email,
-        }
+        return {"username": user.username, "email": user.email}
 
     return app
 

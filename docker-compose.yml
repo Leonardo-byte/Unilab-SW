@@ -8,7 +8,7 @@ services:
       dockerfile: Dockerfile
     container_name: unilab-frontend
     ports:
-      - "80:80"
+      - "8080:80"
     environment:
       - API_BASE_URL=http://backend:8000
     depends_on:
@@ -34,7 +34,10 @@ services:
     container_name: unilab-backend
     ports:
       - "8000:8000"
-      - "5005:5005/udp"
+      - "5005:5005/tcp"
+      - "5006:5005/udp" # modificar a 5005 cuando se vuelva a usar docker
+    devices:
+    - "/dev/ttyUSB0:/dev/ttyUSB0"
     environment:
       - ENVIRONMENT=production
       - LOG_LEVEL=info

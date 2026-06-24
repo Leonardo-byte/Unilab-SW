@@ -62,6 +62,8 @@ class MemoryStorage:
         self._events: list[Event] = []
         self._visible_variables: set[str] | None = None
         self._notes: list[dict[str, Any]] = []
+        self._devices: dict[str, dict[str, Any]] = {}
+        self._connected_devices: set[str] = set()
 
     def save_packet(self, packet: TelemetryPacket) -> None:
         """
@@ -173,6 +175,8 @@ class MemoryStorage:
             "notes_count": len(self._notes),
             "visible_variables": self.get_visible_variables(),
             "visible_variables_configured": self.is_visible_variables_configured(),
+            "devices_count": len(self._devices),
+            "connected_devices_count": len(self._connected_devices),
         }
     
 
@@ -269,3 +273,103 @@ class MemoryStorage:
     def shutdown(self) -> None:
         """Apaga el almacenamiento en memoria."""
         self._is_setup = False
+
+    def register_device(
+        self,
+        device_id: str,
+        protocol: str,
+    ) -> None:
+        """
+        Registra o actualiza un dispositivo detectado.
+
+        En UDP, detectar no significa conectar. Solo significa que se recibió
+        al menos un paquete desde ese device_id.
+        """
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc).isoformat()
+
+        if device_id not in self._devices:
+            self._devices[device_id] = {
+                "device_id": device_id,
+                "protocol": protocol,
+                "status": "detected",
+                "connected": False,
+                "packets_received": 0,
+                "first_seen": now,
+                "last_seen": now,
+            }
+
+        device = self._devices[device_id]
+        device["protocol"] = protocol
+        device["status"] = "detected"
+        device["last_seen"] = now
+        device["packets_received"] = int(device.get("packets_received", 0)) + 1
+        device["connected"] = device_id in self._connected_devices
+
+
+    def get_devices(
+        self,
+        protocol: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Retorna los dispositivos detectados.
+
+        Si protocol es None, retorna todos.
+        """
+        devices = []
+
+        for device in self._devices.values():
+            if protocol is not None and device.get("protocol") != protocol:
+                continue
+
+            device_copy = dict(device)
+            device_copy["connected"] = (
+                device_copy["device_id"] in self._connected_devices
+            )
+            devices.append(device_copy)
+
+        return devices
+
+
+    def connect_device(self, device_id: str) -> None:
+        """
+        Marca un dispositivo detectado como conectado lógicamente.
+        """
+        if device_id not in self._devices:
+            raise ValueError(f"Dispositivo no detectado: {device_id}")
+
+        self._connected_devices.add(device_id)
+        self._devices[device_id]["connected"] = True
+        self._devices[device_id]["status"] = "connected"
+
+
+    def disconnect_device(self, device_id: str) -> None:
+        """
+        Desconecta lógicamente un dispositivo.
+        """
+        self._connected_devices.discard(device_id)
+
+        if device_id in self._devices:
+            self._devices[device_id]["connected"] = False
+            self._devices[device_id]["status"] = "detected"
+
+
+    def is_device_connected(self, device_id: str) -> bool:
+        """
+        Indica si un dispositivo está conectado lógicamente.
+        """
+        return device_id in self._connected_devices
+
+
+    def get_connected_devices(self) -> list[dict[str, Any]]:
+        """
+        Retorna solo los dispositivos conectados.
+        """
+        return [
+            device
+            for device in self.get_devices()
+            if device.get("connected") is True
+        ]
+    
+

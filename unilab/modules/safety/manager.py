@@ -60,26 +60,46 @@ class SafetyManager:
         self._is_setup = False
 
     def validate_packet(self, packet: TelemetryPacket) -> list[Event]:
-        """
-        Valida todas las mediciones de un paquete de telemetría.
-
-        Retorna:
-            list[Event]:
-                Lista de eventos generados por la validación.
-
-                - Si todo está correcto, retorna un evento informativo.
-                - Si hay mediciones fuera de rango, retorna eventos de falla.
-        """
         events: list[Event] = []
 
         for measurement in packet.measurements:
-            event = self.validate_measurement(
-                measurement=measurement,
-                source=packet.source,
-            )
+            variable = measurement.variable
 
-            if event is not None:
-                events.append(event)
+            if variable not in self.limits:
+                continue
+
+            limit = self.limits[variable]
+            min_value = limit.get("min")
+            max_value = limit.get("max")
+            value = measurement.value
+
+            if min_value is not None and value < min_value:
+                comment = limit.get("comment_below") or (
+                    f"La medición '{variable}' está por debajo del límite mínimo. "
+                    f"Valor recibido: {value}. Límite mínimo: {min_value}."
+                )
+
+                events.append(
+                    self._build_fault_event(
+                        measurement=measurement,
+                        source=packet.source,
+                        message=comment,
+                    )
+                )
+
+            if max_value is not None and value > max_value:
+                comment = limit.get("comment_above") or (
+                    f"La medición '{variable}' está por encima del límite máximo. "
+                    f"Valor recibido: {value}. Límite máximo: {max_value}."
+                )
+
+                events.append(
+                    self._build_fault_event(
+                        measurement=measurement,
+                        source=packet.source,
+                        message=comment,
+                    )
+                )
 
         return events
 
@@ -139,6 +159,8 @@ class SafetyManager:
         measurement_name: str,
         min_value: float | None = None,
         max_value: float | None = None,
+        comment_below: str | None = None,
+        comment_above: str | None = None,
     ) -> None:
         """
         Define o actualiza el límite de una medición específica.
@@ -146,7 +168,12 @@ class SafetyManager:
         if not measurement_name or not measurement_name.strip():
             raise ValueError("El nombre de la medición no puede estar vacío.")
 
-        self.limits[measurement_name] = {}
+        self.limits[measurement_name] = {
+            "min": min_value,
+            "max": max_value,
+            "comment_below": comment_below,
+            "comment_above": comment_above,
+        }
 
         if min_value is not None:
             self.limits[measurement_name]["min"] = min_value
