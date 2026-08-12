@@ -5,12 +5,10 @@ import {PlusCircle, Target, Radio, Activity, Zap, FileText, CheckCircle2, AlertT
 
 function Inicio() {
   
-  // Estados para las acciones rápidas
   const [ensayoActivo, setEnsayoActivo] = useState(false)
   const [calibracionActiva, setCalibracionActiva] = useState(false)
   const [monitoreoActivo, setMonitoreoActivo] = useState(false)
 
-  // Datos simulados de actividad reciente
   const sesionesRecientes = [
     { 
       id: '#042', 
@@ -40,7 +38,6 @@ function Inicio() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           
-          {/* Tarjeta 1: Jaula */}
           <StatusCard 
             title="JAULA" 
             status="Reposo" 
@@ -50,7 +47,6 @@ function Inicio() {
             metricUnit="A" 
           />
 
-          {/* Tarjeta 2: CubeSat */}
           <StatusCard 
             title="CUBESAT" 
             status="Trasmitiendo" 
@@ -60,7 +56,6 @@ function Inicio() {
             metricUnit="V" 
           />
 
-          {/* Tarjeta 3: Simulador Solar */}
           <StatusCard 
             title="SIM. SOLAR" 
             status="Apagado" 
@@ -73,9 +68,6 @@ function Inicio() {
         </div>
       </section>
 
-      {/* ============================================ */}
-      {/* SECCIÓN 2: ACCIONES RÁPIDAS                  */}
-      {/* ============================================ */}
       <section>
         <h2 className="text-2xl font-bold text-cyan-400 mb-6 flex items-center gap-2 tracking-wider">
           <Zap size={24} />
@@ -84,7 +76,6 @@ function Inicio() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           
-          {/* Acción 1: Nuevo Ensayo */}
           <ActionCard 
             icon={PlusCircle}
             title="NUEVO ENSAYO"
@@ -94,7 +85,6 @@ function Inicio() {
             }}
           />
 
-          {/* Acción 2: Calibración ML */}
           <ActionCard 
             icon={Target}
             title="CALIBRACIÓN ML"
@@ -104,7 +94,6 @@ function Inicio() {
             }}
           />
 
-          {/* Acción 3: Monitoreo Vivo */}
           <ActionCard 
             icon={Radio}
             title="MONITOREO VIVO"
@@ -117,9 +106,6 @@ function Inicio() {
         </div>
       </section>
 
-      {/* ============================================ */}
-      {/* SECCIÓN 3: ACTIVIDAD RECIENTE                */}
-      {/* ============================================ */}
       <section>
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-lg font-bold text-gray-300 flex items-center gap-2 tracking-wider">
@@ -131,7 +117,6 @@ function Inicio() {
           </button>
         </div>
 
-        {/* Tabla de sesiones */}
         <div className="bg-[#14171e] border border-gray-800 rounded-lg overflow-hidden">
           <table className="w-full text-left">
             <thead className="bg-[#0f1115] text-gray-500 text-xs uppercase tracking-wider border-b border-gray-800">
