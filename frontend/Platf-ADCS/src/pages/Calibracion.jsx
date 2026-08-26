@@ -74,9 +74,7 @@ function Calibracion() {
         <div className="flex items-center justify-between">
           {[
             { num: 1, label: 'VERIF', completado: true },
-            { num: 2, label: 'BARRIDO', completado: false, activo: true },
-            { num: 3, label: 'ML', completado: false },
-            { num: 4, label: 'VALIDAR', completado: false },
+            { num: 2, label: 'VALIDAR', completado: false },
           ].map((fase, index) => (
             <div key={fase.num} className="flex items-center flex-1">
               <div className="flex items-center">
@@ -144,13 +142,6 @@ function Calibracion() {
               </div>
             </div>
 
-            <div className="bg-[#0a0c10] border border-gray-800 rounded p-3">
-              <p className="text-gray-500 text-[10px] mb-1">TEMP. PROMEDIO</p>
-              <p className={`font-mono text-xl font-bold ${tempPromedio > 45 ? 'text-yellow-400' : 'text-green-400'}`}>
-                {tempPromedio.toFixed(1)}°C
-              </p>
-            </div>
-
             <div className="grid grid-cols-2 gap-3 mt-6">
               <button
                 onClick={barridoActivo ? pausarBarrido : iniciarBarrido}
@@ -172,43 +163,6 @@ function Calibracion() {
               </button>
             </div>
           </div>
-
-          <div className="bg-[#14171e] border border-gray-800 rounded-lg p-6">
-            <p className="text-gray-500 text-[10px] mb-2">R² DETERMINACIÓN</p>
-            <p className={`text-4xl font-bold font-mono ${r2Determinacion >= 0.98 ? 'text-green-400' : 'text-yellow-400'}`}>
-              {r2Determinacion.toFixed(3)}
-            </p>
-            <div className="flex items-center gap-2 mt-2">
-              <div className="w-2 h-2 rounded-full bg-green-500"></div>
-              <span className="text-green-400 text-xs font-bold">AJUSTE ÓPTIMO</span>
-            </div>
-          </div>
-
-          <div className="bg-[#14171e] border border-gray-800 rounded-lg p-6">
-            <p className="text-gray-500 text-[10px] mb-3">TRAINING LOSS (MSE)</p>
-            <div className="h-20">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trainingLossData}>
-                  <defs>
-                    <linearGradient id="colorLoss" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#06B6D4" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#06B6D4" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <Area
-                    type="monotone"
-                    dataKey="loss"
-                    stroke="#06B6D4"
-                    strokeWidth={2}
-                    fill="url(#colorLoss)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-            <p className="text-right text-xs text-cyan-400 mt-2">
-              EPOCH {epoch} <span className="text-green-400 font-bold">CONVERGED</span>
-            </p>
-          </div>
         </div>
 
         <div className="col-span-8 space-y-6">
@@ -225,8 +179,8 @@ function Calibracion() {
               <thead className="border-b border-gray-800">
                 <tr>
                   <th className="text-left text-gray-500 text-[10px] font-bold py-2">PARAM</th>
-                  <th className="text-left text-gray-500 text-[10px] font-bold py-2">TEÓRICO (PDF)</th>
-                  <th className="text-left text-gray-500 text-[10px] font-bold py-2">CALIBRADO (ML)</th>
+                  <th className="text-left text-gray-500 text-[10px] font-bold py-2">TEÓRICO</th>
+                  <th className="text-left text-gray-500 text-[10px] font-bold py-2">CALIBRADO</th>
                   <th className="text-left text-gray-500 text-[10px] font-bold py-2">Δ%</th>
                   <th className="text-left text-gray-500 text-[10px] font-bold py-2">ESTADO</th>
                 </tr>
@@ -258,70 +212,6 @@ function Calibracion() {
             </table>
           </div>
 
-          <div className="bg-[#14171e] border border-gray-800 rounded-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-gray-300 font-bold text-xs tracking-wider">
-                RESIDUAL ERROR ANALYSIS
-              </h3>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-0.5 bg-red-400"></div>
-                  <span className="text-gray-500 text-[10px]">ANTES</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-0.5 bg-green-400"></div>
-                  <span className="text-gray-500 text-[10px]">DESPUÉS</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="h-48">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={residualData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis
-                    dataKey="punto"
-                    stroke="#6B7280"
-                    tick={{ fill: '#6B7280', fontSize: 10 }}
-                    tickFormatter={(value) => value * 0.3}
-                  />
-                  <YAxis
-                    stroke="#6B7280"
-                    tick={{ fill: '#6B7280', fontSize: 10 }}
-                    domain={[-15, 15]}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#0A0E17',
-                      border: '1px solid #374151',
-                      borderRadius: '4px',
-                      fontSize: '10px'
-                    }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="antes"
-                    stroke="#F87171"
-                    strokeWidth={1.5}
-                    dot={false}
-                    opacity={0.6}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="despues"
-                    stroke="#10B981"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="flex items-center justify-between mt-4 text-[10px] text-gray-500">
-              <p>DATA POINTS: -15.0 to +15.0 arcsec</p>
-              <p>RESIDUAL RMS: 0.04 arcsec</p>
-            </div>
-          </div>
         </div>
       </div>
 

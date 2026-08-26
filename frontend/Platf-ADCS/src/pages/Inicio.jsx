@@ -55,16 +55,6 @@ function Inicio() {
             metricValue="--" 
             metricUnit="V" 
           />
-
-          <StatusCard 
-            title="SIM. SOLAR" 
-            status="Apagado" 
-            statusColor="text-gray-400 border-gray-600 bg-gray-700/30" 
-            metricLabel="POTENCIA DE SALIDA" 
-            metricValue="0" 
-            metricUnit="W" 
-          />
-
         </div>
       </section>
 
@@ -87,7 +77,7 @@ function Inicio() {
 
           <ActionCard 
             icon={Target}
-            title="CALIBRACIÓN ML"
+            title="CALIBRACIÓN"
             onClick={() => {
               setCalibracionActiva(!calibracionActiva)
               console.log('Calibración:', !calibracionActiva ? 'EJECUTANDO' : 'DETENIDA')

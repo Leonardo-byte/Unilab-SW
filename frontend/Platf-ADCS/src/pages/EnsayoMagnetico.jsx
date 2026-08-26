@@ -8,6 +8,8 @@ function EnsayoMagnetico() {
   const [Bz, setBz] = useState(22.1)
   
   const [magnitudTotal, setMagnitudTotal] = useState(0)
+
+  const [ejeSeleccionado, setEjeSeleccionado] = useState('X')
   
   const [modoActivo, setModoActivo] = useState('manual') 
   
@@ -15,6 +17,10 @@ function EnsayoMagnetico() {
   const [perfilValidado, setPerfilValidado] = useState(false)
   
   const [datosGrafica, setDatosGrafica] = useState([])
+
+  const [datosEjeX, setDatosEjeX] = useState([])
+  const [datosEjeY, setDatosEjeY] = useState([])
+  const [datosEjeZ, setDatosEjeZ] = useState([])
   
   const [telemetriaBobinas, setTelemetriaBobinas] = useState([
     { eje: 'X', corriente: 1.66, constante: 27.14, temperatura: 45 },
@@ -107,6 +113,14 @@ function EnsayoMagnetico() {
       mensaje: '⏹ Secuencia abortada por usuario',
       tipo: 'warning'
     }])
+  }
+
+  const datosActuales = ejeSeleccionado === 'X' ? datosEjeX : ejeSeleccionado === 'Y' ? datosEjeY : datosEjeZ
+
+  const coloresEje = {
+    X: { linea: '#EF4444', texto: 'text-red-400', borde: 'border-red-400' },
+    Y: { linea: '#10B981', texto: 'text-green-400', borde: 'border-green-400' },
+    Z: { linea: '#3B82F6', texto: 'text-blue-400', borde: 'border-blue-400' }
   }
 
   const CustomTooltip = ({ active, payload, label }) => {
@@ -264,6 +278,23 @@ function EnsayoMagnetico() {
               <h3 className="text-gray-300 font-bold text-sm tracking-wider">
                 Correlación del campo magnético
               </h3>
+    
+               <div className="flex items-center gap-2">
+                {['X', 'Y', 'Z'].map((eje) => (
+                  <button
+                    key={eje}
+                    onClick={() => setEjeSeleccionado(eje)}
+                    className={`px-4 py-1.5 rounded text-xs font-bold tracking-wider transition-all ${
+                      ejeSeleccionado === eje
+                        ? `${coloresEje[eje].texto} ${coloresEje[eje].borde} border bg-opacity-10`
+                        : 'text-gray-500 hover:text-gray-300'
+                    }`}
+                  >
+                    EJE {eje}
+                  </button>
+                ))}
+              </div>
+
               <div className="flex items-center gap-4 text-xs">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-0.5 border-t-2 border-dashed border-cyan-400"></div>
@@ -359,14 +390,6 @@ function EnsayoMagnetico() {
                   <span className="text-gray-500 font-mono">
                     K{bobina.eje}={bobina.constante} μT/A
                   </span>
-                  <div className="flex items-center gap-1">
-                    <Thermometer size={10} className="text-gray-500" />
-                    <span className={`font-mono ${
-                      bobina.temperatura > 45 ? 'text-yellow-400' : 'text-green-400'
-                    }`}>
-                      {bobina.temperatura}°C
-                    </span>
-                  </div>
                 </div>
               </div>
             ))}
