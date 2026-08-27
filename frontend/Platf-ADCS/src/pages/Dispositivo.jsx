@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Wifi, Usb, Activity, Search, Save, Power, CheckCircle2, AlertCircle, RefreshCw} from 'lucide-react'
 import { api } from '../services/api'
+import { useDevice } from '../context/DeviceContext.jsx'
 
 function Dispositivo() {
+  const { jaulaConectada, setJaulaConectada, cubesatConectado, setCubesatConectado } = useDevice()
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -52,22 +54,47 @@ function Dispositivo() {
     }
   }, [cubesatConfig.estado])
 
-  const conectarJaula = () => {
-    setJaulaConfig(prev => ({
-      ...prev,
-      estado: prev.estado === 'Desconectada' ? 'Conectada' : 'Desconectada'
-    }))
-    setConsolaJaula(jaulaConfig.estado === 'Desconectada'
-      ? `> Conexión establecida en ${jaulaConfig.puerto} @ ${jaulaConfig.baudios} bps\n> Verificando hardware... OK\n> Sistema listo.`
-      : '> Desconectando...\n> Conexión cerrada.'
-    )
+  const conectarJaula = async () => {
+    if (jaulaConectada) {
+      try {
+        await api.desconectarJaula()
+        setJaulaConectada(false)
+        setJaulaConfig(prev => ({ ...prev, estado: 'Desconectada' }))
+        setConsolaJaula('> Desconectando...\n> Conexión cerrada.')
+      } catch (error) {
+        setConsolaJaula(`> Error al desconectar: ${error.message}`)
+      }
+    } else {
+      try {
+        setConsolaJaula(`> Conectando a ${jaulaConfig.puerto} @ ${jaulaConfig.baudios} bps...`)
+        await api.conectarJaula()
+        setJaulaConectada(true)
+        setJaulaConfig(prev => ({ ...prev, estado: 'Conectada' }))
+        setConsolaJaula(`> Conexión establecida en ${jaulaConfig.puerto} @ ${jaulaConfig.baudios} bps\n> Verificando hardware... OK\n> Sistema listo.`)
+      } catch (error) {
+        setConsolaJaula(`> Error de conexión: ${error.message}`)
+      }
+    }
   }
 
-  const iniciarEscuchaUDP = () => {
-    setCubesatConfig(prev => ({
-      ...prev,
-      estado: prev.estado === 'Sin Stream' ? 'Conectado' : 'Sin Stream'
-    }))
+  const iniciarEscuchaUDP = async () => {
+    if (cubesatConectado) {
+      try {
+        await api.desconectarCubesat()
+        setCubesatConectado(false)
+        setCubesatConfig(prev => ({ ...prev, estado: 'Sin Stream' }))
+      } catch (error) {
+        console.error(error)
+      }
+    } else {
+      try {
+        await api.conectarCubesat()
+        setCubesatConectado(true)
+        setCubesatConfig(prev => ({ ...prev, estado: 'Conectado' }))
+      } catch (error) {
+        console.error(error)
+      }
+    }
   }
 
   const enviarPingHTTP = () => {
@@ -106,12 +133,12 @@ function Dispositivo() {
             </div>
             <div className="flex items-center gap-2">
               <span className={`text-xs font-bold ${
-                jaulaConfig.estado === 'Conectada' ? 'text-green-400' : 'text-red-400'
+                jaulaConectada ? 'text-green-400' : 'text-red-400'
               }`}>
-                Estado: {jaulaConfig.estado}
+                Estado: {jaulaConectada ? 'Conectada' : 'Desconectada'}
               </span>
               <div className={`w-2 h-2 rounded-full ${
-                jaulaConfig.estado === 'Conectada' ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+                jaulaConectada ? 'bg-green-500 animate-pulse' : 'bg-red-500'
               }`}></div>
             </div>
           </div>
@@ -152,13 +179,13 @@ function Dispositivo() {
           <button
             onClick={conectarJaula}
             className={`w-full px-4 py-3 rounded font-bold text-xs tracking-wider flex items-center justify-center gap-2 transition-all mb-4 ${
-              jaulaConfig.estado === 'Conectada'
+              jaulaConectada
                 ? 'bg-red-500 hover:bg-red-600 text-white'
                 : 'bg-cyan-500 hover:bg-cyan-600 text-black'
             }`}
           >
             <Power size={14} />
-            {jaulaConfig.estado === 'Conectada' ? 'DESCONECTAR JAULA' : 'CONECTAR JAULA'}
+            {jaulaConectada ? 'DESCONECTAR JAULA' : 'CONECTAR JAULA'}
           </button>
 
           <div className="bg-[#0a0c10] border border-gray-800 rounded p-4 font-mono text-xs text-gray-400 h-32 overflow-y-auto">
@@ -176,12 +203,12 @@ function Dispositivo() {
             </div>
             <div className="flex items-center gap-2">
               <span className={`text-xs font-bold ${
-                cubesatConfig.estado === 'Conectado' ? 'text-green-400' : 'text-red-400'
+                cubesatConectado ? 'text-green-400' : 'text-red-400'
               }`}>
-                {cubesatConfig.estado}
+                {cubesatConectado ? 'Conectado' : 'Sin Stream'}
               </span>
               <div className={`w-2 h-2 rounded-full ${
-                cubesatConfig.estado === 'Conectado' ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+                cubesatConectado ? 'bg-green-500 animate-pulse' : 'bg-red-500'
               }`}></div>
             </div>
           </div>
@@ -213,13 +240,13 @@ function Dispositivo() {
             <button
               onClick={iniciarEscuchaUDP}
               className={`px-4 py-2 rounded font-bold text-xs tracking-wider flex items-center justify-center gap-2 transition-all ${
-                cubesatConfig.estado === 'Conectado'
+                cubesatConectado
                   ? 'bg-red-500 hover:bg-red-600 text-white'
                   : 'bg-cyan-500 hover:bg-cyan-600 text-black'
               }`}
             >
               <Wifi size={14} />
-              {cubesatConfig.estado === 'Conectado' ? 'DETENER' : 'INICIAR ESCUCHA UDP'}
+              {cubesatConectado ? 'DETENER' : 'INICIAR ESCUCHA UDP'}
             </button>
             <button
               onClick={enviarPingHTTP}

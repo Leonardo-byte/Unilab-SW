@@ -16,4 +16,4 @@ class SaveSessionCommand(BaseModel):
     nombre_sesion: str
     descripcion: Optional[str] = None
     operador: str
-    tipo_prueba: str  # "calibracion"|"ensayo"|"validacion"
+    tipo_prueba: str  

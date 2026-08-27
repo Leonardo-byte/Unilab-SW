@@ -9,12 +9,14 @@ import Solar from './pages/Solar.jsx'
 import Historial from './pages/Historial.jsx'
 import Configuracion from './pages/Configuracion.jsx'
 import Layout from './components/Layout.jsx'
+import { DeviceProvider } from './context/DeviceContext.jsx'
 
 
 function App() {
 
   return (
     <>
+      <DeviceProvider>
       <BrowserRouter>
       <Routes>
         <Route path="/" element={<Layout />}>
@@ -29,7 +31,8 @@ function App() {
           <Route path="configuracion" element={<Configuracion />} />
         </Route>
       </Routes>
-    </BrowserRouter>
+      </BrowserRouter>
+      </DeviceProvider>
     </>
   )
 }

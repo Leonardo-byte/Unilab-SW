@@ -2,8 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 import {LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine} from 'recharts'
 import {Play,Square, AlertTriangle, CheckCircle2, Thermometer, Zap, Wifi, WifiOff} from 'lucide-react'
 import { api } from '../services/api'
+import { useDevice } from '../context/DeviceContext.jsx'
 
 function EnsayoMagnetico() {
+  const { jaulaConectada } = useDevice()
   const [Bx, setBx] = useState(45.2)
   const [By, setBy] = useState(-12.8)
   const [Bz, setBz] = useState(22.1)
@@ -49,6 +51,13 @@ function EnsayoMagnetico() {
   const wsRef = useRef(null)
 
   useEffect(() => {
+    if (!jaulaConectada) {
+      wsRef.current?.close()
+      wsRef.current = null
+      setConectado(false)
+      return
+    }
+
     const connect = () => {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       const ws = new WebSocket(`${protocol}//${window.location.host}/ws/telemetry`)
@@ -94,7 +103,7 @@ function EnsayoMagnetico() {
     connect()
 
     return () => wsRef.current?.close()
-  }, [ensayoActivo, Bx])
+  }, [jaulaConectada, ensayoActivo, Bx])
 
   const validarPerfil = () => {
     if (magnitudTotal >= 35 && magnitudTotal <= 95) {
@@ -114,6 +123,14 @@ function EnsayoMagnetico() {
   }
 
   const iniciarEnsayo = async () => {
+    if (!jaulaConectada) {
+      setLogs(prev => [...prev, {
+        hora: new Date().toLocaleTimeString(),
+        mensaje: 'La jaula debe estar conectada para iniciar',
+        tipo: 'warning'
+      }])
+      return
+    }
     if (!perfilValidado) {
       setLogs(prev => [...prev, {
         hora: new Date().toLocaleTimeString(),
@@ -281,11 +298,11 @@ function EnsayoMagnetico() {
             <div className="grid grid-cols-2 gap-3 mt-4">
               <button
                 onClick={iniciarEnsayo}
-                disabled={!perfilValidado || ensayoActivo}
+                disabled={!jaulaConectada || !perfilValidado || ensayoActivo}
                 className={`px-4 py-3 rounded font-bold text-xs tracking-wider flex items-center justify-center gap-2 transition-all ${
                   ensayoActivo
                     ? 'bg-green-500 text-white'
-                    : perfilValidado
+                    : jaulaConectada && perfilValidado
                     ? 'bg-green-500 hover:bg-green-600 text-white'
                     : 'bg-gray-800 text-gray-500 cursor-not-allowed'
                 }`}

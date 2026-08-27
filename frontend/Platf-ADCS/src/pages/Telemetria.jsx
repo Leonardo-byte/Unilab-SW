@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { ChevronUp, ChevronDown, Radio, RotateCcw, Activity, Wifi, WifiOff } from 'lucide-react'
+import { useDevice } from '../context/DeviceContext.jsx'
 
 function Telemetria() {
+  const { cubesatConectado } = useDevice()
   const [telemetria, setTelemetria] = useState({
     roll: 0,
     pitch: 0,
@@ -24,6 +26,13 @@ function Telemetria() {
   const wsRef = useRef(null)
 
   useEffect(() => {
+    if (!cubesatConectado) {
+      wsRef.current?.close()
+      wsRef.current = null
+      setConectado(false)
+      return
+    }
+
     const connect = () => {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       const ws = new WebSocket(`${protocol}//${window.location.host}/ws/telemetry`)
@@ -95,7 +104,7 @@ function Telemetria() {
     connect()
 
     return () => wsRef.current?.close()
-  }, [])
+  }, [cubesatConectado])
 
   const formatNumber = (num, decimals = 1) => num.toFixed(decimals)
 

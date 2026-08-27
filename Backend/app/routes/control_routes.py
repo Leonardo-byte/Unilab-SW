@@ -2,8 +2,42 @@ from fastapi import APIRouter, HTTPException
 from app.models.telemetry import ControlCommand, PerfilMagnetico
 from app.config import settings
 from app.services.simulation_service import simulador
+from app.services.jaula_service import jaula_service
+from app.services.cubesat_service import cubesat_service
 
 router = APIRouter()
+
+@router.post("/jaula/conectar")
+async def conectar_jaula():
+    success = jaula_service.connect()
+    if success:
+        return {"message": "Jaula conectada", "estado": "conectada"}
+    raise HTTPException(status_code=400, detail="No se pudo conectar la jaula")
+
+@router.post("/jaula/desconectar")
+async def desconectar_jaula():
+    jaula_service.disconnect()
+    return {"message": "Jaula desconectada", "estado": "desconectada"}
+
+@router.post("/cubesat/conectar")
+async def conectar_cubesat():
+    success = cubesat_service.start_udp_listener()
+    if success:
+        return {"message": "CubeSat conectado", "estado": "conectado"}
+    raise HTTPException(status_code=400, detail="No se pudo conectar el CubeSat")
+
+@router.post("/cubesat/desconectar")
+async def desconectar_cubesat():
+    cubesat_service.stop_udp_listener()
+    return {"message": "CubeSat desconectado", "estado": "desconectado"}
+
+@router.get("/jaula/estado")
+async def estado_jaula():
+    return {"conectada": jaula_service.is_connected}
+
+@router.get("/cubesat/estado")
+async def estado_cubesat():
+    return {"conectado": cubesat_service.is_listening}
 
 @router.post("/jaula/corriente")
 async def set_corriente_jaula(comando: ControlCommand):

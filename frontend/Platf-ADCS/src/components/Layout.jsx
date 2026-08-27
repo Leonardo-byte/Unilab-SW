@@ -1,57 +1,11 @@
 import { Outlet, useLocation, Link } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
-import {
-  LayoutDashboard,
-  SlidersHorizontal,
-  Rocket,
-  Wifi,
-  Settings,
-  History,
-  Sun,
-  User,
-  Activity
-} from 'lucide-react'
+import { LayoutDashboard, SlidersHorizontal, Rocket, Wifi, Settings, History, Sun, User, Activity } from 'lucide-react'
+import { useDevice } from '../context/DeviceContext.jsx'
 
 function Layout() {
   const location = useLocation()
-  const [jaulaConectada, setJaulaConectada] = useState(false)
-  const [cubesatConectado, setCubesatConectado] = useState(false)
-  const wsRef = useRef(null)
-
-  useEffect(() => {
-    const connect = () => {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const ws = new WebSocket(`${protocol}//${window.location.host}/ws/telemetry`)
-
-      ws.onopen = () => {
-        setJaulaConectada(true)
-        setCubesatConectado(true)
-      }
-
-      ws.onmessage = () => {
-        setJaulaConectada(true)
-        setCubesatConectado(true)
-      }
-
-      ws.onclose = () => {
-        setJaulaConectada(false)
-        setCubesatConectado(false)
-        setTimeout(connect, 3000)
-      }
-
-      ws.onerror = () => {
-        setJaulaConectada(false)
-        setCubesatConectado(false)
-        ws.close()
-      }
-
-      wsRef.current = ws
-    }
-
-    connect()
-
-    return () => wsRef.current?.close()
-  }, [])
+  const { jaulaConectada, cubesatConectado } = useDevice()
 
   const menuItems = [
     { path: '/inicio', label: 'INICIO', icon: LayoutDashboard },
