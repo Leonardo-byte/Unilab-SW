@@ -22,8 +22,8 @@ async def websocket_telemetry(websocket: WebSocket):
             
             await websocket.send_json({
                 "type": "telemetry",
-                "jaula": jaula_data.model_dump(),
-                "cubesat": cubesat_data.model_dump()
+                "jaula": jaula_data.model_dump(mode='json'),
+                "cubesat": cubesat_data.model_dump(mode='json')
             })
             
             await asyncio.sleep(settings.WS_UPDATE_INTERVAL)

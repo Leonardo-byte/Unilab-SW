@@ -1,67 +1,121 @@
-import { useState, useEffect } from 'react'
-import {ChevronUp, ChevronDown, Radio, RotateCcw, Activity} from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { ChevronUp, ChevronDown, Radio, RotateCcw, Activity, Wifi, WifiOff } from 'lucide-react'
 
 function Telemetria() {
   const [telemetria, setTelemetria] = useState({
-    roll: 14.2,
-    pitch: -2.5,
-    yaw: 89.1,
-    q0: 0.707,
-    q1: 0.000,
-    q2: 0.707,
-    q3: 0.000,
-    acc: { x: 0.98, y: 0.12, z: -0.05 },
-    gyro: { x: 0.01, y: -0.02, z: 0.00 },
-    mag: { x: 24.1, y: -12.5, z: 45.2 },
-    sun: { x: 84, negX: 12, y: 91, negY: 5, z: 22, negZ: 18 },
-    adcsMode: 'SUN_ACQUISITION',
-    mtq: { x: 45, y: 12, z: 0 },
-    power: { voltage: 3.7, percentage: 85, watts: 0.56 },
-    link: { frequency: 50, latency: 12 }
+    roll: 0,
+    pitch: 0,
+    yaw: 0,
+    q0: 0,
+    q1: 0,
+    q2: 0,
+    q3: 0,
+    acc: { x: 0, y: 0, z: 0 },
+    gyro: { x: 0, y: 0, z: 0 },
+    mag: { x: 0, y: 0, z: 0 },
+    sun: { x: 0, negX: 0, y: 0, negY: 0, z: 0, negZ: 0 },
+    adcsMode: '---',
+    sunSensors: { sun_1: 0, sun_2: 0, sun_3: 0, sun_4: 0, sun_5: 0, sun_6: 0 }
   })
 
   const [consolaExpandida, setConsolaExpandida] = useState(true)
-  const [logsTelemetria, setLogsTelemetria] = useState([
-    { timestamp: 1698765432, roll: 14.2, pitch: -2.5, yaw: 89.1, sun_1: 2847, sun_2: 412, sun_3: 3102, sun_4: 150, sun_5: 890, sun_6: 720 },
-    { timestamp: 1698765433, roll: 14.2, pitch: -2.5, yaw: 89.1, sun_1: 2848, sun_2: 411, sun_3: 3105, sun_4: 150, sun_5: 889, sun_6: 721 },
-    { timestamp: 1698765434, roll: 14.3, pitch: -2.4, yaw: 89.2, sun_1: 2850, sun_2: 410, sun_3: 3108, sun_4: 149, sun_5: 885, sun_6: 725 },
-    { timestamp: 1698765435, roll: 14.3, pitch: -2.4, yaw: 89.2, sun_1: 2850, sun_2: 410, sun_3: 3108, sun_4: 149, sun_5: 885, sun_6: 725 },
-  ])
+  const [logsTelemetria, setLogsTelemetria] = useState([])
+  const [conectado, setConectado] = useState(false)
+  const wsRef = useRef(null)
 
   useEffect(() => {
-    const intervalo = setInterval(() => {
-      setTelemetria(prev => ({
-        ...prev,
-        roll: prev.roll + (Math.random() - 0.5) * 0.1,
-        pitch: prev.pitch + (Math.random() - 0.5) * 0.1,
-        yaw: prev.yaw + (Math.random() - 0.5) * 0.1,
-      }))
-    }, 1000)
+    const connect = () => {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const ws = new WebSocket(`${protocol}//${window.location.host}/ws/telemetry`)
 
-    return () => clearInterval(intervalo)
+      ws.onopen = () => setConectado(true)
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data)
+        if (data.type === 'telemetry' && data.cubesat) {
+          const c = data.cubesat
+          setTelemetria({
+            roll: c.roll || 0,
+            pitch: c.pitch || 0,
+            yaw: c.yaw || 0,
+            q0: c.q0 || 0,
+            q1: c.q1 || 0,
+            q2: c.q2 || 0,
+            q3: c.q3 || 0,
+            acc: { x: c.acc_x || 0, y: c.acc_y || 0, z: c.acc_z || 0 },
+            gyro: { x: c.gyro_x || 0, y: c.gyro_y || 0, z: c.gyro_z || 0 },
+            mag: { x: c.mag_x || 0, y: c.mag_y || 0, z: c.mag_z || 0 },
+            sun: {
+              x: c.sun_1 || 0,
+              negX: c.sun_2 || 0,
+              y: c.sun_3 || 0,
+              negY: c.sun_4 || 0,
+              z: c.sun_5 || 0,
+              negZ: c.sun_6 || 0
+            },
+            adcsMode: c.adcs_mode || '---',
+            sunSensors: {
+              sun_1: c.sun_1 || 0,
+              sun_2: c.sun_2 || 0,
+              sun_3: c.sun_3 || 0,
+              sun_4: c.sun_4 || 0,
+              sun_5: c.sun_5 || 0,
+              sun_6: c.sun_6 || 0
+            }
+          })
+
+          setLogsTelemetria(prev => {
+            const nuevo = {
+              timestamp: Math.floor(Date.now() / 1000),
+              roll: c.roll,
+              pitch: c.pitch,
+              yaw: c.yaw,
+              sun_1: c.sun_1,
+              sun_2: c.sun_2,
+              sun_3: c.sun_3,
+              sun_4: c.sun_4,
+              sun_5: c.sun_5,
+              sun_6: c.sun_6
+            }
+            return [...prev, nuevo].slice(-50)
+          })
+        }
+      }
+
+      ws.onclose = () => {
+        setConectado(false)
+        setTimeout(connect, 3000)
+      }
+
+      ws.onerror = () => ws.close()
+
+      wsRef.current = ws
+    }
+
+    connect()
+
+    return () => wsRef.current?.close()
   }, [])
 
-  const formatNumber = (num, decimals = 1) => {
-    return num.toFixed(decimals)
-  }
+  const formatNumber = (num, decimals = 1) => num.toFixed(decimals)
 
   return (
     <div className="space-y-6">
-      
+
       <div className="grid grid-cols-12 gap-6">
-        
+
         <div className="col-span-4 space-y-6">
-          
+
           <div className="bg-[#14171e] border border-gray-800 rounded-lg p-5">
             <h3 className="text-gray-400 text-xs font-bold tracking-wider mb-4">
               ESTADOS CINEMÁTICOS
             </h3>
-            
+
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-[#0a0c10] border border-gray-800 rounded p-3 text-center">
                 <p className="text-gray-500 text-[10px] mb-1">ROLL</p>
                 <p className="text-cyan-400 font-mono text-xl font-bold">
-                  +{formatNumber(telemetria.roll)}°
+                  {telemetria.roll >= 0 ? '+' : ''}{formatNumber(telemetria.roll)}°
                 </p>
               </div>
               <div className="bg-[#0a0c10] border border-gray-800 rounded p-3 text-center">
@@ -73,7 +127,7 @@ function Telemetria() {
               <div className="bg-[#0a0c10] border border-gray-800 rounded p-3 text-center">
                 <p className="text-gray-500 text-[10px] mb-1">YAW</p>
                 <p className="text-cyan-400 font-mono text-xl font-bold">
-                  +{formatNumber(telemetria.yaw)}°
+                  {telemetria.yaw >= 0 ? '+' : ''}{formatNumber(telemetria.yaw)}°
                 </p>
               </div>
             </div>
@@ -83,9 +137,9 @@ function Telemetria() {
             <h3 className="text-gray-400 text-xs font-bold tracking-wider mb-4">
               CUATERNIONES
             </h3>
-            
+
             <div className="grid grid-cols-4 gap-2">
-              {['q0', 'q1', 'q2', 'q3'].map((q, index) => (
+              {['q0', 'q1', 'q2', 'q3'].map((q) => (
                 <div key={q} className="text-center">
                   <p className="text-gray-500 text-[10px] mb-1">{q}:</p>
                   <p className="text-cyan-400 font-mono text-sm font-bold">
@@ -100,7 +154,7 @@ function Telemetria() {
             <h3 className="text-gray-400 text-xs font-bold tracking-wider mb-4">
               DATOS
             </h3>
-            
+
             <div className="space-y-3">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-gray-400 font-mono w-16">ACC (g)</span>
@@ -110,7 +164,7 @@ function Telemetria() {
                   <span className="text-cyan-400">Z:{telemetria.acc.z.toFixed(2)}</span>
                 </div>
               </div>
-              
+
               <div className="flex items-center justify-between text-xs">
                 <span className="text-gray-400 font-mono w-16">GYRO (°/s)</span>
                 <div className="flex gap-3 font-mono">
@@ -119,7 +173,7 @@ function Telemetria() {
                   <span className="text-cyan-400">Z:{telemetria.gyro.z.toFixed(2)}</span>
                 </div>
               </div>
-              
+
               <div className="flex items-center justify-between text-xs">
                 <span className="text-gray-400 font-mono w-16">MAG (μT)</span>
                 <div className="flex gap-3 font-mono">
@@ -155,7 +209,7 @@ function Telemetria() {
             </div>
 
             <div className="w-full h-[calc(100%-3rem)] bg-[#0a0c10] rounded border border-gray-800 relative overflow-hidden flex items-center justify-center">
-              
+
               <div className="absolute inset-0 opacity-10" style={{
                 backgroundImage: 'linear-gradient(rgba(6, 182, 212, 0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(6, 182, 212, 0.3) 1px, transparent 1px)',
                 backgroundSize: '40px 40px'
@@ -201,12 +255,12 @@ function Telemetria() {
       </div>
 
       <div className="grid grid-cols-2 gap-6">
-        
+
         <div className="bg-[#14171e] border border-gray-800 rounded-lg p-5">
           <h3 className="text-gray-400 text-xs font-bold tracking-wider mb-4">
             SENSORES SOLARES (LDR)
           </h3>
-          
+
           <div className="grid grid-cols-3 gap-3">
             {[
               { label: '+X', value: telemetria.sun.x },
@@ -219,9 +273,9 @@ function Telemetria() {
               <div key={sensor.label} className="bg-[#0a0c10] border border-gray-800 rounded p-4 text-center">
                 <p className="text-gray-500 text-xs mb-2">{sensor.label}</p>
                 <p className={`font-mono text-2xl font-bold ${
-                  sensor.value > 50 ? 'text-cyan-400' : 'text-gray-400'
+                  sensor.value > 1500 ? 'text-cyan-400' : 'text-gray-400'
                 }`}>
-                  {sensor.value.toString().padStart(2, '0')}%
+                  {sensor.value}
                 </p>
               </div>
             ))}
@@ -232,7 +286,7 @@ function Telemetria() {
           <h3 className="text-gray-400 text-xs font-bold tracking-wider mb-4">
             SISTEMA Y CONTROL
           </h3>
-          
+
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-gray-400 text-xs font-bold">ADCS MODE</span>
@@ -242,27 +296,6 @@ function Telemetria() {
                   {telemetria.adcsMode}
                 </span>
               </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-gray-400 text-xs font-bold">MTQ STATUS</span>
-              <span className="text-cyan-400 font-mono text-sm">
-                X({telemetria.mtq.x}%) Y({telemetria.mtq.y}%) Z({telemetria.mtq.z}%)
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-gray-400 text-xs font-bold">POWER</span>
-              <span className="text-cyan-400 font-mono text-sm">
-                {telemetria.power.voltage}V ({telemetria.power.percentage}%) | {telemetria.power.watts}W
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-gray-400 text-xs font-bold">LINK</span>
-              <span className="text-cyan-400 font-mono text-sm">
-                UDP {telemetria.link.frequency}Hz | Latency {telemetria.link.latency}ms
-              </span>
             </div>
 
             <div className="grid grid-cols-2 gap-3 pt-4">
@@ -280,7 +313,7 @@ function Telemetria() {
       </div>
 
       <div className="bg-[#14171e] border border-gray-800 rounded-lg overflow-hidden">
-        
+
         <button
           onClick={() => setConsolaExpandida(!consolaExpandida)}
           className="w-full px-5 py-3 flex items-center justify-between hover:bg-[#1a1e26] transition-colors"
@@ -300,14 +333,18 @@ function Telemetria() {
 
         {consolaExpandida && (
           <div className="border-t border-gray-800 p-5 bg-[#0a0c10] font-mono text-xs max-h-64 overflow-y-auto">
-            {logsTelemetria.map((log, index) => (
-              <div key={index} className="text-gray-400 mb-2 leading-relaxed">
-                <span className="text-gray-600">&gt; </span>
-                <span className="text-cyan-400">
-                  {JSON.stringify(log)}
-                </span>
-              </div>
-            ))}
+            {logsTelemetria.length === 0 ? (
+              <div className="text-gray-500">Esperando datos de telemetría...</div>
+            ) : (
+              logsTelemetria.map((log, index) => (
+                <div key={index} className="text-gray-400 mb-2 leading-relaxed">
+                  <span className="text-gray-600">&gt; </span>
+                  <span className="text-cyan-400">
+                    {JSON.stringify(log)}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         )}
       </div>

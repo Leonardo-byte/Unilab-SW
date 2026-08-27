@@ -1,4 +1,5 @@
 import { Outlet, useLocation, Link } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
 import {
   LayoutDashboard,
   SlidersHorizontal,
@@ -13,6 +14,44 @@ import {
 
 function Layout() {
   const location = useLocation()
+  const [jaulaConectada, setJaulaConectada] = useState(false)
+  const [cubesatConectado, setCubesatConectado] = useState(false)
+  const wsRef = useRef(null)
+
+  useEffect(() => {
+    const connect = () => {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const ws = new WebSocket(`${protocol}//${window.location.host}/ws/telemetry`)
+
+      ws.onopen = () => {
+        setJaulaConectada(true)
+        setCubesatConectado(true)
+      }
+
+      ws.onmessage = () => {
+        setJaulaConectada(true)
+        setCubesatConectado(true)
+      }
+
+      ws.onclose = () => {
+        setJaulaConectada(false)
+        setCubesatConectado(false)
+        setTimeout(connect, 3000)
+      }
+
+      ws.onerror = () => {
+        setJaulaConectada(false)
+        setCubesatConectado(false)
+        ws.close()
+      }
+
+      wsRef.current = ws
+    }
+
+    connect()
+
+    return () => wsRef.current?.close()
+  }, [])
 
   const menuItems = [
     { path: '/inicio', label: 'INICIO', icon: LayoutDashboard },
@@ -64,12 +103,12 @@ function Layout() {
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-6 text-sm">
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                <span className="text-gray-300 tracking-wider">JAULA: ACTIVADO</span>
+                <span className={`w-2 h-2 rounded-full ${jaulaConectada ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                <span className="text-gray-300 tracking-wider">JAULA: {jaulaConectada ? 'ACTIVADO' : 'DESCONECTADO'}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                <span className="text-gray-300 tracking-wider">CUBESAT: CONECTADO</span>
+                <span className={`w-2 h-2 rounded-full ${cubesatConectado ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                <span className="text-gray-300 tracking-wider">CUBESAT: {cubesatConectado ? 'CONECTADO' : 'DESCONECTADO'}</span>
               </div>
             </div>
 

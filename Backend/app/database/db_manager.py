@@ -106,9 +106,8 @@ class DBManager:
         cursor.execute('''
             INSERT INTO jaula_telemetry 
             (sesion_id, timestamp, eje_x_corriente, eje_y_corriente, eje_z_corriente,
-             eje_x_campo, eje_y_campo, eje_z_campo,
-             temperatura_driver_x, temperatura_driver_y, temperatura_driver_z, estado)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             eje_x_campo, eje_y_campo, eje_z_campo, estado)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,)
         ''', (
             sesion_id,
             telemetry_data.get('timestamp', datetime.now()),
@@ -118,9 +117,6 @@ class DBManager:
             telemetry_data.get('eje_x_campo'),
             telemetry_data.get('eje_y_campo'),
             telemetry_data.get('eje_z_campo'),
-            telemetry_data.get('temperatura_driver_x'),
-            telemetry_data.get('temperatura_driver_y'),
-            telemetry_data.get('temperatura_driver_z'),
             telemetry_data.get('estado')
         ))
         self.conn.commit()

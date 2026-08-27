@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from app.services.simulation_service import simulador
-from app.models.telemetry import JaulaTelemetry, CubeSatTelemetry
+from app.models.telemetry import JaulaTelemetry, CubeSatTelemetry, PerfilMagnetico
 
 router = APIRouter()
 
@@ -11,17 +11,17 @@ async def get_jaula_telemetry():
 
 @router.get("/cubesat", response_model=CubeSatTelemetry)
 async def get_cubesat_telemetry():
-   
+    
     return simulador.generar_telemetria_cubesat()
 
 @router.post("/jaula/iniciar")
-async def iniciar_ensayo_jaula(bx: float, by: float, bz: float):
+async def iniciar_ensayo_jaula(perfil: PerfilMagnetico):
 
-    simulador.iniciar_ensayo({"bx": bx, "by": by, "bz": bz})
+    simulador.iniciar_ensayo({"bx": perfil.bx, "by": perfil.by, "bz": perfil.bz})
     return {
         "message": "Ensayo de jaula iniciado",
         "estado": "ejecutando",
-        "perfil": {"bx": bx, "by": by, "bz": bz}
+        "perfil": {"bx": perfil.bx, "by": perfil.by, "bz": perfil.bz}
     }
 
 @router.post("/jaula/detener")

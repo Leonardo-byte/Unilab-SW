@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine} from 'recharts'
-import {Play,Square, AlertTriangle, CheckCircle2, Thermometer, Zap} from 'lucide-react'
+import {Play,Square, AlertTriangle, CheckCircle2, Thermometer, Zap, Wifi, WifiOff} from 'lucide-react'
+import { api } from '../services/api'
 
 function EnsayoMagnetico() {
   const [Bx, setBx] = useState(45.2)
@@ -44,31 +45,56 @@ function EnsayoMagnetico() {
     setMagnitudTotal(magnitud)
   }, [Bx, By, Bz])
 
+  const [conectado, setConectado] = useState(false)
+  const wsRef = useRef(null)
+
   useEffect(() => {
-    if (!ensayoActivo) return
+    const connect = () => {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const ws = new WebSocket(`${protocol}//${window.location.host}/ws/telemetry`)
 
-    const intervalo = setInterval(() => {
-      setDatosGrafica(prev => {
-        const ultimoTiempo = prev.length > 0 ? prev[prev.length - 1].tiempo : 0
-        const nuevoTiempo = ultimoTiempo + 1
-        
-        const campoObjetivo = 50 * Math.sin(nuevoTiempo * 0.1) + 20
-        const campoMedido = campoObjetivo + (Math.random() - 0.5) * 5
-        
-        const nuevoDato = {
-          tiempo: nuevoTiempo,
-          objetivo: campoObjetivo.toFixed(1),
-          medido: campoMedido.toFixed(1),
-          timestamp: new Date().toLocaleTimeString()
+      ws.onopen = () => setConectado(true)
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data)
+        if (data.type === 'telemetry' && data.jaula) {
+          const j = data.jaula
+          setTelemetriaBobinas([
+            { eje: 'X', corriente: j.eje_x_corriente || 0, constante: 27.14, temperatura: 45 },
+            { eje: 'Y', corriente: j.eje_y_corriente || 0, constante: 31.32, temperatura: 42 },
+            { eje: 'Z', corriente: j.eje_z_corriente || 0, constante: 29.08, temperatura: 48 },
+          ])
+
+          if (ensayoActivo) {
+            setDatosGrafica(prev => {
+              const ultimoTiempo = prev.length > 0 ? prev[prev.length - 1].tiempo : 0
+              const nuevoTiempo = ultimoTiempo + 1
+              const nuevoDato = {
+                tiempo: nuevoTiempo,
+                objetivo: Bx.toFixed(1),
+                medido: (j.eje_x_campo || 0).toFixed(1),
+                timestamp: new Date().toLocaleTimeString()
+              }
+              return [...prev, nuevoDato].slice(-60)
+            })
+          }
         }
-        
-        const nuevosDatos = [...prev, nuevoDato].slice(-60)
-        return nuevosDatos
-      })
-    }, 1000)
+      }
 
-    return () => clearInterval(intervalo)
-  }, [ensayoActivo])
+      ws.onclose = () => {
+        setConectado(false)
+        setTimeout(connect, 3000)
+      }
+
+      ws.onerror = () => ws.close()
+
+      wsRef.current = ws
+    }
+
+    connect()
+
+    return () => wsRef.current?.close()
+  }, [ensayoActivo, Bx])
 
   const validarPerfil = () => {
     if (magnitudTotal >= 35 && magnitudTotal <= 95) {
@@ -87,7 +113,7 @@ function EnsayoMagnetico() {
     }
   }
 
-  const iniciarEnsayo = () => {
+  const iniciarEnsayo = async () => {
     if (!perfilValidado) {
       setLogs(prev => [...prev, {
         hora: new Date().toLocaleTimeString(),
@@ -96,21 +122,35 @@ function EnsayoMagnetico() {
       }])
       return
     }
-    setEnsayoActivo(true)
-    setDatosGrafica([])
-    setLogs(prev => [...prev, {
-      hora: new Date().toLocaleTimeString(),
-      mensaje: '▶ Ensayo iniciado',
-      tipo: 'success'
-    }])
+    try {
+      await api.iniciarEnsayo(Bx, By, Bz)
+      setEnsayoActivo(true)
+      setDatosGrafica([])
+      setLogs(prev => [...prev, {
+        hora: new Date().toLocaleTimeString(),
+        mensaje: `▶ Ensayo iniciado — Bx:${Bx} By:${By} Bz:${Bz} μT`,
+        tipo: 'success'
+      }])
+    } catch (error) {
+      setLogs(prev => [...prev, {
+        hora: new Date().toLocaleTimeString(),
+        mensaje: `Error al iniciar ensayo: ${error.message}`,
+        tipo: 'warning'
+      }])
+    }
   }
 
-  const abortarSecuencia = () => {
+  const abortarSecuencia = async () => {
+    try {
+      await api.detenerEnsayo()
+    } catch (error) {
+      console.error(error)
+    }
     setEnsayoActivo(false)
     setPerfilValidado(false)
     setLogs(prev => [...prev, {
       hora: new Date().toLocaleTimeString(),
-      mensaje: '⏹ Secuencia abortada por usuario',
+      mensaje: '⏹ Secuencia detenida por usuario',
       tipo: 'warning'
     }])
   }

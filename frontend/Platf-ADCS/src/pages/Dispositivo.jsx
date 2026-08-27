@@ -1,7 +1,26 @@
 import { useState, useEffect } from 'react'
 import { Wifi, Usb, Activity, Search, Save, Power, CheckCircle2, AlertCircle, RefreshCw} from 'lucide-react'
+import { api } from '../services/api'
 
 function Dispositivo() {
+  const [status, setStatus] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const data = await api.getStatus()
+        setStatus(data)
+      } catch (error) {
+        console.error('Error fetching status:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchStatus()
+    const interval = setInterval(fetchStatus, 5000)
+    return () => clearInterval(interval)
+  }, [])
   const [jaulaConfig, setJaulaConfig] = useState({
     puerto: 'COM3',
     baudios: '115200',
@@ -38,7 +57,7 @@ function Dispositivo() {
       ...prev,
       estado: prev.estado === 'Desconectada' ? 'Conectada' : 'Desconectada'
     }))
-    setConsolaJaula(prev.estado === 'Desconectada'
+    setConsolaJaula(jaulaConfig.estado === 'Desconectada'
       ? `> Conexión establecida en ${jaulaConfig.puerto} @ ${jaulaConfig.baudios} bps\n> Verificando hardware... OK\n> Sistema listo.`
       : '> Desconectando...\n> Conexión cerrada.'
     )
@@ -74,7 +93,7 @@ function Dispositivo() {
 
   return (
     <div className="space-y-6">
-      
+
       <div className="grid grid-cols-2 gap-6">
         
         <div className="bg-[#14171e] border border-gray-800 rounded-lg p-6">
