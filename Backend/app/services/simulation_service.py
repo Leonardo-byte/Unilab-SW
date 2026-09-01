@@ -90,12 +90,6 @@ class SimulationService:
         mag_y = -12.5 + campo_jaula_y + random.uniform(-1, 1)
         mag_z = 45.2 + campo_jaula_z + random.uniform(-1, 1)
         
-        sun_1 = int(2847 + random.randint(-50, 50))   # +X (iluminado)
-        sun_2 = int(123 + random.randint(-20, 20))    # -X (sombra)
-        sun_3 = int(3102 + random.randint(-50, 50))   # +Y (iluminado)
-        sun_4 = int(89 + random.randint(-20, 20))     # -Y (sombra)
-        sun_5 = int(1456 + random.randint(-30, 30))   # +Z (parcial)
-        sun_6 = int(201 + random.randint(-20, 20))    # -Z (sombra)
         
         return CubeSatTelemetry(
             timestamp=datetime.now(),
@@ -112,13 +106,6 @@ class SimulationService:
             mag_x=round(mag_x, 1),
             mag_y=round(mag_y, 1),
             mag_z=round(mag_z, 1),
-            sun_1=sun_1, sun_2=sun_2, sun_3=sun_3,
-            sun_4=sun_4, sun_5=sun_5, sun_6=sun_6,
-            adcs_mode="SUN_ACQUISITION",
-            mtq_x_pwm=45 if random.random() > 0.5 else 0,
-            mtq_y_pwm=12 if random.random() > 0.7 else 0,
-            battery_voltage=3.7 + random.uniform(-0.1, 0.1),
-            battery_percentage=85.0
         )
     
     def iniciar_ensayo(self, perfil: Dict[str, float]):

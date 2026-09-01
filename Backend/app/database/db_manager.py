@@ -66,13 +66,6 @@ class DBManager:
                 mag_x REAL,
                 mag_y REAL,
                 mag_z REAL,
-                sun_1 INTEGER,
-                sun_2 INTEGER,
-                sun_3 INTEGER,
-                sun_4 INTEGER,
-                sun_5 INTEGER,
-                sun_6 INTEGER,
-                adcs_mode TEXT,
                 FOREIGN KEY (sesion_id) REFERENCES sesiones(id)
             )
         ''')
@@ -130,10 +123,8 @@ class DBManager:
              q0, q1, q2, q3,
              acc_x, acc_y, acc_z,
              gyro_x, gyro_y, gyro_z,
-             mag_x, mag_y, mag_z,
-             sun_1, sun_2, sun_3, sun_4, sun_5, sun_6,
-             adcs_mode)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             mag_x, mag_y, mag_z,)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             sesion_id,
             telemetry_data.get('timestamp', datetime.now()),
@@ -152,14 +143,7 @@ class DBManager:
             telemetry_data.get('gyro_z'),
             telemetry_data.get('mag_x'),
             telemetry_data.get('mag_y'),
-            telemetry_data.get('mag_z'),
-            telemetry_data.get('sun_1'),
-            telemetry_data.get('sun_2'),
-            telemetry_data.get('sun_3'),
-            telemetry_data.get('sun_4'),
-            telemetry_data.get('sun_5'),
-            telemetry_data.get('sun_6'),
-            telemetry_data.get('adcs_mode')
+            telemetry_data.get('mag_z')
         ))
         self.conn.commit()
     

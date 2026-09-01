@@ -92,13 +92,19 @@ function EnsayoMagnetico() {
 
       ws.onclose = () => {
         setConectado(false)
-        setTimeout(connect, 3000)
+        const delay = Math.min(1000 * Math.pow(1.5, retryRef.current), 10000)
+        retryRef.current += 1
+        setTimeout(connect, delay)
       }
 
-      ws.onerror = () => ws.close()
+      ws.onerror = () => {
+        setConectado(false)
+        ws.close()
+      }
 
       wsRef.current = ws
     }
+    const retryRef = { current: 0 }
 
     connect()
 

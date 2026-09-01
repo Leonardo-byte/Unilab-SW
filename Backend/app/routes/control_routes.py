@@ -1,9 +1,11 @@
 from fastapi import APIRouter, HTTPException
 from app.models.telemetry import ControlCommand, PerfilMagnetico
+from app.models.control import ControlCubesat
 from app.config import settings
 from app.services.simulation_service import simulador
 from app.services.jaula_service import jaula_service
 from app.services.cubesat_service import cubesat_service
+from app.database.db_manager import db_manager
 
 router = APIRouter()
 
@@ -93,3 +95,27 @@ async def set_perfil_magnetico(perfil: PerfilMagnetico):
         "magnitud_total": round(magnitud, 1),
         "estado": "simulado" if settings.SIMULATION_MODE else "ejecutando"
     }
+
+@router.post("/cubesat/comando")
+async def enviar_comando_control(comando: ControlCubesat):
+
+    
+    return {
+            "mtq_x_pwm": "float",
+            "mtq_y_pwm": "float"
+    }
+
+@router.get("/sessions")
+async def get_sesiones(limit: int = 10):
+    sessions = db_manager.get_sessions(limit)
+    return sessions
+
+@router.post("/sessions")
+async def create_sesion(nombre: str, operador: str, tipo_prueba: str, descripcion: str = None):
+    session_id = db_manager.create_session(nombre, operador, tipo_prueba, descripcion)
+    return {"id": session_id, "message": "Sesión creada"}
+
+@router.post("/sessions/{sesion_id}/cerrar")
+async def cerrar_sesion(sesion_id: int):
+    db_manager.close_session(sesion_id)
+    return {"message": "Sesión cerrada"}

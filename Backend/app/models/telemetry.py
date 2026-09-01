@@ -32,19 +32,6 @@ class CubeSatTelemetry(BaseModel):
     mag_y: float
     mag_z: float
 
-    sun_1: int  # +X
-    sun_2: int  # -X
-    sun_3: int  # +Y
-    sun_4: int  # -Y
-    sun_5: int  # +Z
-    sun_6: int  # -Z
-    
-    adcs_mode: str = Field(..., description="IDLE|SUN_ACQUISITION|B_DOT")
-    mtq_x_pwm: Optional[int] = None
-    mtq_y_pwm: Optional[int] = None
-    battery_voltage: Optional[float] = None
-    battery_percentage: Optional[float] = None
-
 class ControlCommand(BaseModel):
     eje: str = Field(..., description="X|Y|Z")
     corriente: float = Field(..., description="Corriente objetivo (A)")

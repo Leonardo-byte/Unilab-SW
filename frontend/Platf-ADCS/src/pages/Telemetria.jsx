@@ -93,13 +93,19 @@ function Telemetria() {
 
       ws.onclose = () => {
         setConectado(false)
-        setTimeout(connect, 3000)
+        const delay = Math.min(1000 * Math.pow(1.5, retryCount.current), 10000)
+        retryCount.current += 1
+        setTimeout(connect, delay)
       }
 
-      ws.onerror = () => ws.close()
+      ws.onerror = () => {
+        setConectado(false)
+        ws.close()
+      }
 
       wsRef.current = ws
     }
+    let retryCount = { current: 0 }
 
     connect()
 
@@ -258,64 +264,6 @@ function Telemetria() {
                   <text x="20" y="75" fill="#3B82F6" fontSize="12" fontWeight="bold">Z</text>
                 </svg>
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-6">
-
-        <div className="bg-[#14171e] border border-gray-800 rounded-lg p-5">
-          <h3 className="text-gray-400 text-xs font-bold tracking-wider mb-4">
-            SENSORES SOLARES (LDR)
-          </h3>
-
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { label: '+X', value: telemetria.sun.x },
-              { label: '-X', value: telemetria.sun.negX },
-              { label: '+Y', value: telemetria.sun.y },
-              { label: '-Y', value: telemetria.sun.negY },
-              { label: '+Z', value: telemetria.sun.z },
-              { label: '-Z', value: telemetria.sun.negZ },
-            ].map((sensor) => (
-              <div key={sensor.label} className="bg-[#0a0c10] border border-gray-800 rounded p-4 text-center">
-                <p className="text-gray-500 text-xs mb-2">{sensor.label}</p>
-                <p className={`font-mono text-2xl font-bold ${
-                  sensor.value > 1500 ? 'text-cyan-400' : 'text-gray-400'
-                }`}>
-                  {sensor.value}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="bg-[#14171e] border border-gray-800 rounded-lg p-5">
-          <h3 className="text-gray-400 text-xs font-bold tracking-wider mb-4">
-            SISTEMA Y CONTROL
-          </h3>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-gray-400 text-xs font-bold">ADCS MODE</span>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                <span className="text-green-400 font-mono text-sm font-bold">
-                  {telemetria.adcsMode}
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 pt-4">
-              <button className="px-4 py-2 border border-cyan-400 text-cyan-400 rounded hover:bg-cyan-400 hover:text-black transition-all text-xs font-bold tracking-wider flex items-center justify-center gap-2">
-                <Radio size={14} />
-                GRABAR SESIÓN
-              </button>
-              <button className="px-4 py-2 border border-gray-600 text-gray-400 rounded hover:bg-gray-700 hover:text-white transition-all text-xs font-bold tracking-wider flex items-center justify-center gap-2">
-                <RotateCcw size={14} />
-                RECONECTAR
-              </button>
             </div>
           </div>
         </div>

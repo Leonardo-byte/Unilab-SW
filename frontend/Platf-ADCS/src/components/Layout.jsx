@@ -1,11 +1,12 @@
 import { Outlet, useLocation, Link } from 'react-router-dom'
-import { useState, useEffect, useRef } from 'react'
-import { LayoutDashboard, SlidersHorizontal, Rocket, Wifi, Settings, History, Sun, User, Activity } from 'lucide-react'
+import { useState } from 'react'
+import { LayoutDashboard, SlidersHorizontal, Rocket, Wifi, Settings, History, Sun, User, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useDevice } from '../context/DeviceContext.jsx'
 
 function Layout() {
   const location = useLocation()
   const { jaulaConectada, cubesatConectado } = useDevice()
+  const [sidebarAbierto, setSidebarAbierto] = useState(true)
 
   const menuItems = [
     { path: '/inicio', label: 'INICIO', icon: LayoutDashboard },
@@ -13,26 +14,29 @@ function Layout() {
     { path: '/ensayo-magnetico', label: 'ENSAYO MAGNETICO', icon: Rocket },
     { path: '/telemetria', label: 'TELEMETRIA', icon: Wifi },
     { path: '/calibracion', label: 'CALIBRACIÓN', icon: SlidersHorizontal },
-    { path: '/solar', label: 'SOLAR', icon: Sun },
     { path: '/historial', label: 'HISTORIAL Y REPORTES', icon: History },
     { path: '/configuracion', label: 'CONFIGURACIÓN', icon: Settings },
   ]
 
   return (
     <div className="flex h-screen bg-[#0a0c10] text-white font-mono">
-      
-      <aside className="w-64 bg-[#14171e] border-r border-gray-800 flex flex-col">
-        <div className="p-6 border-b border-gray-800">
-          <h1 className="text-3xl font-bold text-white tracking-wider">
-            UNILAB
-          </h1>
+
+      <aside className={`${sidebarAbierto ? 'w-64' : 'w-20'} bg-[#14171e] border-r border-gray-800 flex flex-col transition-all duration-300`}>
+        <div className="p-6 border-b border-gray-800 flex items-center justify-between">
+          {sidebarAbierto && <h1 className="text-3xl font-bold text-white tracking-wider">UNILAB</h1>}
+          <button
+            onClick={() => setSidebarAbierto(!sidebarAbierto)}
+            className="p-1.5 rounded-md hover:bg-[#1e2229] text-gray-400 hover:text-white transition-colors"
+          >
+            {sidebarAbierto ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+          </button>
         </div>
 
         <nav className="flex-1 p-4 space-y-1">
           {menuItems.map((item) => {
             const Icon = item.icon
             const isActive = location.pathname === item.path
-            
+
             return (
               <Link
                 key={item.path}
@@ -42,9 +46,10 @@ function Layout() {
                     ? 'bg-[#1e2229] text-cyan-400 border-l-2 border-cyan-400'
                     : 'text-gray-400 hover:bg-[#1e2229] hover:text-white'
                 }`}
+                title={!sidebarAbierto ? item.label : ''}
               >
                 <Icon size={18} />
-                <span className="font-semibold">{item.label}</span>
+                {sidebarAbierto && <span className="font-semibold">{item.label}</span>}
               </Link>
             )
           })}

@@ -43,6 +43,17 @@ export const api = {
 
   estadoCubesat: () => fetchJSON('/control/cubesat/estado'),
 
+  getSessions: (limit = 10) => fetchJSON(`/control/sessions?limit=${limit}`),
+
+  createSession: (nombre, alumno, tipo_prueba, descripcion) =>
+    fetchJSON('/control/sessions', {
+      method: 'POST',
+      body: JSON.stringify({ nombre, alumno, tipo_prueba, descripcion }),
+    }),
+
+  cerrarSession: (id) =>
+    fetchJSON(`/control/sessions/${id}/cerrar`, { method: 'POST' }),
+
   setCorriente: (eje, corriente) =>
     fetchJSON('/control/jaula/corriente', {
       method: 'POST',
