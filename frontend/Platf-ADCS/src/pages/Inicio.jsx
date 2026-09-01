@@ -1,13 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
 import StatusCard from '../components/StatusCard'
 import ActionCard from '../components/ActionCard'
-import {PlusCircle, Target, Radio, Activity, Zap, FileText, CheckCircle2, AlertTriangle} from 'lucide-react'
+import { PlusCircle, Target, Radio, Activity, Zap, FileText, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { api } from '../services/api'
 import { useDevice } from '../context/DeviceContext.jsx'
 
 function Inicio() {
-  const navigate = useNavigate()
+
   const { jaulaConectada, cubesatConectado } = useDevice()
   const [ensayoActivo, setEnsayoActivo] = useState(false)
   const [monitoreoActivo, setMonitoreoActivo] = useState(false)
@@ -15,19 +14,27 @@ function Inicio() {
   const [jaulaData, setJaulaData] = useState(null)
   const [cubesatData, setCubesatData] = useState(null)
   const [sesionesRecientes, setSesionesRecientes] = useState([])
-
   const wsRef = useRef(null)
 
   useEffect(() => {
-    const fetchSesiones = async () => {
+    const fetchInicial = async () => {
       try {
-        const data = await api.getSessions(5)
-        setSesionesRecientes(data)
+        const [jaula, cubesat, sesiones] = await Promise.all([
+          api.getJaulaTelemetry().catch(() => null),
+          api.getCubesatTelemetry().catch(() => null),
+          api.getSessions(5).catch(() => []),
+        ])
+        setJaulaData(jaula)
+        setCubesatData(cubesat)
+        setSesionesRecientes(sesiones)
       } catch (error) {
-        console.error('Error fetching sessions:', error)
+        console.error('Error fetching data:', error)
       }
     }
-    fetchSesiones()
+    fetchInicial()
+
+    const interval = setInterval(fetchInicial, 5000)
+    return () => clearInterval(interval)
   }, [])
 
   useEffect(() => {
@@ -49,11 +56,7 @@ function Inicio() {
     }
 
     ws.onclose = () => {
-      setTimeout(() => {
-        if (jaulaConectada || cubesatConectado) {
-          wsRef.current = new WebSocket(`${protocol}//${window.location.host}/ws/telemetry`)
-        }
-      }, 3000)
+      wsRef.current = null
     }
 
     wsRef.current = ws
@@ -62,9 +65,8 @@ function Inicio() {
   }, [jaulaConectada, cubesatConectado])
 
   const handleNuevoEnsayo = async () => {
-    if (!jaulaConectada) {
-      return
-    }
+    if (!jaulaConectada) return
+
     try {
       if (!ensayoActivo) {
         await api.iniciarEnsayo(45.2, -12.8, 22.1)
@@ -75,18 +77,6 @@ function Inicio() {
     } catch (error) {
       console.error('Error:', error)
     }
-  }
-
-  const handleCalibracion = () => {
-    navigate('/calibracion')
-  }
-
-  const handleMonitoreoVivo = () => {
-    if (!cubesatConectado) {
-      return
-    }
-    setMonitoreoActivo(!monitoreoActivo)
-    navigate('/telemetria')
   }
 
   return (
@@ -106,7 +96,7 @@ function Inicio() {
               ? "text-cyan-400 border-cyan-400/30 bg-cyan-400/10"
               : "text-red-400 border-red-400/30 bg-red-400/10"}
             metricLabel="CORRIENTE ACTUAL"
-            metricValue={jaulaConectada ? `${((jaulaData?.eje_x_corriente || 0) + (jaulaData?.eje_y_corriente || 0) + (jaulaData?.eje_z_corriente || 0)) / 3}` : '0.0'}
+            metricValue={jaulaData ? `${((jaulaData.eje_x_corriente || 0) + (jaulaData.eje_y_corriente || 0) + (jaulaData.eje_z_corriente || 0)) / 3}` : '0.0'}
             metricUnit="A"
           />
 
@@ -117,7 +107,7 @@ function Inicio() {
               ? "text-green-400 border-green-400/30 bg-green-400/10"
               : "text-gray-400 border-gray-600 bg-gray-700/30"}
             metricLabel="VELOCIDAD ANGULAR"
-            metricValue={cubesatConectado && cubesatData ? `${Math.sqrt(cubesatData.gyro_x**2 + cubesatData.gyro_y**2 + cubesatData.gyro_z**2).toFixed(3)}` : '--'}
+            metricValue={cubesatData ? `${Math.sqrt((cubesatData.gyro_x || 0)**2 + (cubesatData.gyro_y || 0)**2 + (cubesatData.gyro_z || 0)**2).toFixed(3)}` : '--'}
             metricUnit="rad/s"
           />
 
@@ -141,13 +131,16 @@ function Inicio() {
           <ActionCard
             icon={Target}
             title="CALIBRACIÓN"
-            onClick={handleCalibracion}
+            onClick={() => window.location.href = '/calibracion'}
           />
 
           <ActionCard
             icon={Radio}
             title={monitoreoActivo ? 'DETENER MONITOREO' : 'MONITOREO VIVO'}
-            onClick={handleMonitoreoVivo}
+            onClick={() => {
+              if (!cubesatConectado) return
+              window.location.href = '/telemetria'
+            }}
           />
 
         </div>
@@ -188,12 +181,14 @@ function Inicio() {
                   <tr key={index} className="hover:bg-[#1a1e26] transition-colors">
                     <td className="p-4 text-gray-300 font-mono text-sm">#{sesion.id}</td>
                     <td className="p-4 text-gray-300 text-sm">{sesion.nombre || sesion.tipo_prueba}</td>
-                    <td className="p-4 text-gray-300 text-sm">{sesion.duracion || '-'}</td>
+                    <td className="p-4 text-gray-300 text-sm">
+                      {sesion.created_at ? new Date(sesion.created_at).toLocaleTimeString() : '-'}
+                    </td>
                     <td className="p-4">
                       <span className={`flex items-center gap-1.5 text-sm font-medium ${
-                        sesion.estado === 'completada' || sesion.estado === 'activa'
-                          ? 'text-green-400'
-                          : 'text-red-400'
+                        sesion.estado === 'completada' ? 'text-green-400'
+                        : sesion.estado === 'activa' ? 'text-cyan-400'
+                        : 'text-red-400'
                       }`}>
                         {sesion.estado === 'completada' || sesion.estado === 'activa' ? (
                           <CheckCircle2 size={14} />

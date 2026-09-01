@@ -10,8 +10,8 @@ from app.database.db_manager import db_manager
 router = APIRouter()
 
 @router.post("/jaula/conectar")
-async def conectar_jaula():
-    success = jaula_service.connect()
+async def conectar_jaula(port: str = None, baudrate: int = None):
+    success = jaula_service.connect(port or settings.JAULA_SERIAL_PORT, baudrate or settings.JAULA_BAUDRATE)
     if success:
         return {"message": "Jaula conectada", "estado": "conectada"}
     raise HTTPException(status_code=400, detail="No se pudo conectar la jaula")
@@ -119,3 +119,28 @@ async def create_sesion(nombre: str, operador: str, tipo_prueba: str, descripcio
 async def cerrar_sesion(sesion_id: int):
     db_manager.close_session(sesion_id)
     return {"message": "Sesión cerrada"}
+
+@router.post("/jaula/comando")
+async def enviar_comando_serial(comando: str):
+    success = jaula_service.send_command(comando + '\n')
+    if success:
+        return {"message": "Comando enviado", "comando": comando}
+    raise HTTPException(status_code=400, detail="No se pudo enviar el comando")
+
+@router.get("/config")
+async def get_config():
+    return {
+        "simulation_mode": settings.SIMULATION_MODE,
+        "jaula_serial_port": settings.JAULA_SERIAL_PORT,
+        "jaula_baudrate": settings.JAULA_BAUDRATE,
+        "cubesat_ip": settings.CUBESAT_IP,
+        "cubesat_udp_port": settings.CUBESAT_UDP_PORT,
+        "ws_update_interval": settings.WS_UPDATE_INTERVAL,
+        "kx": settings.KX,
+        "ky": settings.KY,
+        "kz": settings.KZ,
+        "min_current": settings.MIN_CURRENT,
+        "max_current": settings.MAX_CURRENT,
+        "min_field": settings.MIN_FIELD,
+        "max_field": settings.MAX_FIELD
+    }

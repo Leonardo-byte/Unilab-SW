@@ -2,6 +2,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes import telemetry_routes, control_routes, websocket_routes, auth_routes
 from app.config import settings
+from app.services.jaula_service import start_jaula_reader, stop_jaula_reader, jaula_service
+from app.services.cubesat_service import cubesat_service
+import threading
+import time
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -23,6 +27,18 @@ app.include_router(auth_routes.router, prefix="/api/auth", tags=["Autenticación
 app.include_router(telemetry_routes.router, prefix="/api/telemetry", tags=["Telemetría"])
 app.include_router(control_routes.router, prefix="/api/control", tags=["Control"])
 app.include_router(websocket_routes.router, prefix="/ws", tags=["WebSocket"])
+
+@app.on_event("startup")
+def start_serial_reader():
+    if not settings.SIMULATION_MODE:
+        start_jaula_reader()
+        cubesat_service.start_udp_listener()
+
+@app.on_event("shutdown")
+def stop_serial_reader():
+    if not settings.SIMULATION_MODE:
+        stop_jaula_reader()
+        cubesat_service.stop_udp_listener()
 
 @app.get("/")
 async def read_root():

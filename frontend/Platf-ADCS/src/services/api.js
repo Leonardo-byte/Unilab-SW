@@ -54,6 +54,14 @@ export const api = {
 
   estadoCubesat: () => fetchJSON('/control/cubesat/estado'),
 
+  getConfig: () => fetchJSON('/control/config'),
+
+  enviarComandoSerial: (comando) =>
+    fetchJSON('/control/jaula/comando', {
+      method: 'POST',
+      params: new URLSearchParams({ comando }).toString(),
+    }),
+
   getSessions: (limit = 10) => fetchJSON(`/control/sessions?limit=${limit}`),
 
   createSession: (nombre, alumno, tipo_prueba, descripcion) =>
