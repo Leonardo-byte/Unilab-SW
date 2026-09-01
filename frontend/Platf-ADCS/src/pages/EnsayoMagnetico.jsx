@@ -447,7 +447,7 @@ function EnsayoMagnetico() {
                     }`}
                     style={{ width: `${(bobina.corriente / 3.5) * 100}%` }}
                   />
-                </div>
+                </div>1
                 
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-gray-500 font-mono">

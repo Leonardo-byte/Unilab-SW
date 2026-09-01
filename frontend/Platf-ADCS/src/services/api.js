@@ -12,6 +12,17 @@ async function fetchJSON(endpoint, options = {}) {
 }
 
 export const api = {
+  login: (username, password) =>
+    fetchJSON('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    }),
+
+  logout: () =>
+    fetchJSON('/auth/logout', { method: 'POST' }),
+
+  verify: () => fetchJSON('/auth/verify'),
+
   getStatus: () => fetchJSON('/status'),
 
   getJaulaTelemetry: () => fetchJSON('/telemetry/jaula'),

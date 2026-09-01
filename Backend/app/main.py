@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import telemetry_routes, control_routes, websocket_routes
+from app.routes import telemetry_routes, control_routes, websocket_routes, auth_routes
 from app.config import settings
 
 app = FastAPI(
@@ -19,6 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_routes.router, prefix="/api/auth", tags=["Autenticación"])
 app.include_router(telemetry_routes.router, prefix="/api/telemetry", tags=["Telemetría"])
 app.include_router(control_routes.router, prefix="/api/control", tags=["Control"])
 app.include_router(websocket_routes.router, prefix="/ws", tags=["WebSocket"])

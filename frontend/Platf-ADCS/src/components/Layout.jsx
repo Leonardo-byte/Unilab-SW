@@ -2,10 +2,12 @@ import { Outlet, useLocation, Link } from 'react-router-dom'
 import { useState } from 'react'
 import { LayoutDashboard, SlidersHorizontal, Rocket, Wifi, Settings, History, Sun, User, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useDevice } from '../context/DeviceContext.jsx'
+import { useAuth } from '../context/AuthContext.jsx'
 
 function Layout() {
   const location = useLocation()
   const { jaulaConectada, cubesatConectado } = useDevice()
+  const { logout } = useAuth()
   const [sidebarAbierto, setSidebarAbierto] = useState(true)
 
   const menuItems = [
@@ -71,10 +73,16 @@ function Layout() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 text-gray-300 tracking-wider">
-              <span className="font-semibold">MIGUEL</span>
-              <User size={18} />
-            </div>
+             <div className="flex items-center gap-4 text-gray-300 tracking-wider">
+               <span className="font-semibold">MIGUEL</span>
+               <User size={18} />
+               <button
+                 onClick={logout}
+                 className="px-3 py-1 border border-gray-600 text-gray-400 rounded hover:bg-gray-700 hover:text-white transition-all text-xs font-bold tracking-wider"
+               >
+                 SALIR
+               </button>
+             </div>
           </div>
         </header>
 
