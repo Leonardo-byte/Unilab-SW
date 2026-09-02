@@ -5,8 +5,8 @@ import { api } from '../services/api'
 import { useDevice } from '../context/DeviceContext.jsx'
 
 function EnsayoMagnetico() {
-  const { jaulaConectada } = useDevice()
-
+  const { jaulaConectada, ensayoActivo, setEnsayoActivo, sesionId, setSesionId } = useDevice()
+  const [configHardware, setConfigHardware] = useState(null)
   const [Bx, setBx] = useState(45.2)
   const [By, setBy] = useState(-12.8)
   const [Bz, setBz] = useState(22.1)
@@ -15,14 +15,13 @@ function EnsayoMagnetico() {
   const [ejeSeleccionado, setEjeSeleccionado] = useState('ALL')
   const [modoActivo, setModoActivo] = useState('manual')
 
-  const [ensayoActivo, setEnsayoActivo] = useState(false)
   const [perfilValidado, setPerfilValidado] = useState(false)
 
   const [datosGrafica, setDatosGrafica] = useState([])
   const [telemetriaBobinas, setTelemetriaBobinas] = useState([
-    { eje: 'X', corriente: 0, constante: 27.14, temperatura: 45 },
-    { eje: 'Y', corriente: 0, constante: 31.32, temperatura: 42 },
-    { eje: 'Z', corriente: 0, constante: 29.08, temperatura: 48 },
+    { eje: 'X', corriente: 0, constante: 0 },
+    { eje: 'Y', corriente: 0, constante: 0 },
+    { eje: 'Z', corriente: 0, constante: 0 },
   ])
 
   const [funcionParams, setFuncionParams] = useState({
@@ -47,6 +46,23 @@ function EnsayoMagnetico() {
   }, [Bx, By, Bz, funcionParams, modoActivo])
 
   useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const cfg = await api.getConfig()
+        setConfigHardware(cfg)
+        setTelemetriaBobinas([
+          { eje: 'X', corriente: 0, constante: cfg.kx || 0 },
+          { eje: 'Y', corriente: 0, constante: cfg.ky || 0 },
+          { eje: 'Z', corriente: 0, constante: cfg.kz || 0 },
+        ])
+      } catch (error) {
+        console.error('Error fetching config:', error)
+      }
+    }
+    fetchConfig()
+  }, [])
+
+  useEffect(() => {
     if (!jaulaConectada) {
       wsRef.current?.close()
       wsRef.current = null
@@ -62,13 +78,13 @@ function EnsayoMagnetico() {
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data)
-      if (data.type === 'telemetry' && data.jaula) {
-        const j = data.jaula
-        setTelemetriaBobinas([
-          { eje: 'X', corriente: j.eje_x_corriente || 0, constante: 27.14, temperatura: 45 },
-          { eje: 'Y', corriente: j.eje_y_corriente || 0, constante: 31.32, temperatura: 42 },
-          { eje: 'Z', corriente: j.eje_z_corriente || 0, constante: 29.08, temperatura: 48 },
-        ])
+        if (data.type === 'telemetry' && data.jaula) {
+          const j = data.jaula
+          setTelemetriaBobinas([
+            { eje: 'X', corriente: j.eje_x_corriente || 0, constante: configHardware?.kx || 0 },
+            { eje: 'Y', corriente: j.eje_y_corriente || 0, constante: configHardware?.ky || 0 },
+            { eje: 'Z', corriente: j.eje_z_corriente || 0, constante: configHardware?.kz || 0 },
+          ])
 
         if (ensayoActivo) {
           const now = Date.now()
@@ -180,9 +196,11 @@ function EnsayoMagnetico() {
     }
     try {
       if (modoActivo === 'funcion') {
-        await api.iniciarEnsayo(funcionParams.offsetX, funcionParams.offsetY, funcionParams.offsetZ)
+        const result = await api.iniciarEnsayo(funcionParams.offsetX, funcionParams.offsetY, funcionParams.offsetZ)
+        setSesionId(result.sesion_id)
       } else {
-        await api.iniciarEnsayo(Bx, By, Bz)
+        const result = await api.iniciarEnsayo(Bx, By, Bz)
+        setSesionId(result.sesion_id)
       }
       setEnsayoActivo(true)
       setDatosGrafica([])
@@ -204,6 +222,10 @@ function EnsayoMagnetico() {
 
   const abortarSecuencia = async () => {
     try {
+      if (sesionId) {
+        await api.cerrarSession(sesionId)
+        setSesionId(null)
+      }
       await api.detenerEnsayo()
     } catch (error) {
       console.error(error)

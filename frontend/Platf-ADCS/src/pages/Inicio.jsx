@@ -7,8 +7,7 @@ import { useDevice } from '../context/DeviceContext.jsx'
 
 function Inicio() {
 
-  const { jaulaConectada, cubesatConectado } = useDevice()
-  const [ensayoActivo, setEnsayoActivo] = useState(false)
+  const { jaulaConectada, cubesatConectado, ensayoActivo, setEnsayoActivo, sesionId, setSesionId } = useDevice()
   const [monitoreoActivo, setMonitoreoActivo] = useState(false)
 
   const [jaulaData, setJaulaData] = useState(null)
@@ -35,7 +34,7 @@ function Inicio() {
 
     const interval = setInterval(fetchInicial, 5000)
     return () => clearInterval(interval)
-  }, [])
+  }, [ensayoActivo, sesionId])
 
   useEffect(() => {
     if (!jaulaConectada && !cubesatConectado) {
@@ -64,13 +63,18 @@ function Inicio() {
     return () => wsRef.current?.close()
   }, [jaulaConectada, cubesatConectado])
 
-  const handleNuevoEnsayo = async () => {
+const handleNuevoEnsayo = async () => {
     if (!jaulaConectada) return
 
     try {
       if (!ensayoActivo) {
-        await api.iniciarEnsayo(45.2, -12.8, 22.1)
+        const result = await api.iniciarEnsayo(45.2, -12.8, 22.1)
+        setSesionId(result.sesion_id)
       } else {
+        if (sesionId) {
+          await api.cerrarSession(sesionId)
+          setSesionId(null)
+        }
         await api.detenerEnsayo()
       }
       setEnsayoActivo(!ensayoActivo)

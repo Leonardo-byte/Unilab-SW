@@ -5,6 +5,8 @@ const DeviceContext = createContext(null)
 export function DeviceProvider({ children }) {
   const [jaulaConectada, setJaulaConectada] = useState(false)
   const [cubesatConectado, setCubesatConectado] = useState(false)
+  const [ensayoActivo, setEnsayoActivo] = useState(false)
+  const [sesionId, setSesionId] = useState(null)
 
   return (
     <DeviceContext.Provider value={{
@@ -12,6 +14,10 @@ export function DeviceProvider({ children }) {
       setJaulaConectada,
       cubesatConectado,
       setCubesatConectado,
+      ensayoActivo,
+      setEnsayoActivo,
+      sesionId,
+      setSesionId,
     }}>
       {children}
     </DeviceContext.Provider>
