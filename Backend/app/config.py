@@ -4,7 +4,7 @@ class Settings(BaseSettings):
     
     APP_NAME: str = "UNILAB Backend API"
     DEBUG: bool = True
-    SIMULATION_MODE: bool = True 
+    SIMULATION_MODE: bool = False 
     
     
     JAULA_SERIAL_PORT: str = "/dev/ttyUSB0"  
