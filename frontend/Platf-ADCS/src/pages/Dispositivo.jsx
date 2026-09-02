@@ -31,7 +31,7 @@ function Dispositivo() {
   const [consolaJaula, setConsolaJaula] = useState('> Consola: Esperando conexión...')
 
   const [cubesatConfig, setCubesatConfig] = useState({
-    ip: '192.168.1.100',
+    ip: '10.102.201.196',
     puerto: '5005',
     estado: 'Sin Stream',
     tasaDatos: 0

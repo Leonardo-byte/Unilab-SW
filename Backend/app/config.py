@@ -4,13 +4,13 @@ class Settings(BaseSettings):
     
     APP_NAME: str = "UNILAB Backend API"
     DEBUG: bool = True
-    SIMULATION_MODE: bool = False 
+    SIMULATION_MODE: bool = False
     
     
     JAULA_SERIAL_PORT: str = "/dev/ttyUSB0"  
     JAULA_BAUDRATE: int = 115200
     
-    CUBESAT_IP: str = "192.168.1.100"
+    CUBESAT_IP: str = "10.102.201.196"
     CUBESAT_UDP_PORT: int = 5005
     CUBESAT_HTTP_PORT: int = 80
 
