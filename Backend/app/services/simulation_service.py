@@ -14,6 +14,34 @@ class SimulationService:
         self.tiempo_simulacion = 0
         self.perfil_activo = None
         self.corrientes_objetivo = {"X": 0.0, "Y": 0.0, "Z": 0.0}
+        self._ema = {
+            "roll": 0.0, "pitch": 0.0, "yaw": 0.0,
+            "acc_x": 0.0, "acc_y": 0.0, "acc_z": 0.0,
+            "gyro_x": 0.0, "gyro_y": 0.0, "gyro_z": 0.0,
+            "mag_x": 0.0, "mag_y": 0.0, "mag_z": 0.0,
+            "campo_x": 0.0, "campo_y": 0.0, "campo_z": 0.0,
+        }
+        self._prev_yaw_unwrapped: float | None = None
+        self._ema_alpha = 0.3
+
+    def _smooth(self, key: str, value: float) -> float:
+        prev = self._ema[key]
+        out = self._ema_alpha * value + (1 - self._ema_alpha) * prev
+        self._ema[key] = out
+        return out
+
+    @staticmethod
+    def _unwrap(prev: float | None, current: float) -> float:
+        if prev is None:
+            return current
+        delta = current - prev
+        while delta > 180:
+            current -= 360
+            delta = current - prev
+        while delta < -180:
+            current += 360
+            delta = current - prev
+        return current
 
     def generar_telemetria_jaula(self) -> JaulaTelemetry:
 
@@ -48,14 +76,18 @@ class SimulationService:
 
         magnitud = math.sqrt(campo_x**2 + campo_y**2 + campo_z**2)
 
+        campo_x_f = self._smooth("campo_x", campo_x)
+        campo_y_f = self._smooth("campo_y", campo_y)
+        campo_z_f = self._smooth("campo_z", campo_z)
+
         return JaulaTelemetry(
             timestamp=datetime.now(),
             eje_x_corriente=round(corriente_x, 2),
             eje_y_corriente=round(corriente_y, 2),
             eje_z_corriente=round(corriente_z, 2),
-            eje_x_campo=round(campo_x, 1),
-            eje_y_campo=round(campo_y, 1),
-            eje_z_campo=round(campo_z, 1),
+            eje_x_campo=round(campo_x_f, 1),
+            eje_y_campo=round(campo_y_f, 1),
+            eje_z_campo=round(campo_z_f, 1),
             estado=self.jaula_estado
         )
 
@@ -73,27 +105,34 @@ class SimulationService:
 
         tiempo = self.tiempo_simulacion * settings.WS_UPDATE_INTERVAL
 
-        roll = 14.2 + math.sin(tiempo * 0.05) * 2 + random.uniform(-0.5, 0.5)
-        pitch = -2.5 + math.cos(tiempo * 0.03) * 1.5 + random.uniform(-0.5, 0.5)
-        yaw = 89.1 + math.sin(tiempo * 0.02) * 3 + random.uniform(-0.5, 0.5)
+        roll_raw = 14.2 + math.sin(tiempo * 0.05) * 2 + random.uniform(-0.5, 0.5)
+        pitch_raw = -2.5 + math.cos(tiempo * 0.03) * 1.5 + random.uniform(-0.5, 0.5)
+        yaw_raw = 89.1 + math.sin(tiempo * 0.02) * 3 + random.uniform(-0.5, 0.5)
+
+        yaw_unwrapped = self._unwrap(self._prev_yaw_unwrapped, yaw_raw)
+        self._prev_yaw_unwrapped = yaw_unwrapped
+
+        roll = self._smooth("roll", roll_raw)
+        pitch = self._smooth("pitch", pitch_raw)
+        yaw = self._smooth("yaw", yaw_unwrapped)
 
         q0, q1, q2, q3 = CubeSatService._euler_a_cuaternion(roll, pitch, yaw)
 
-        acc_x = 0.98 + random.uniform(-0.02, 0.02)
-        acc_y = 0.12 + random.uniform(-0.02, 0.02)
-        acc_z = -0.05 + random.uniform(-0.02, 0.02)
+        acc_x = self._smooth("acc_x", 0.98 + random.uniform(-0.02, 0.02))
+        acc_y = self._smooth("acc_y", 0.12 + random.uniform(-0.02, 0.02))
+        acc_z = self._smooth("acc_z", -0.05 + random.uniform(-0.02, 0.02))
 
-        gyro_x = random.uniform(-0.05, 0.05)
-        gyro_y = random.uniform(-0.05, 0.05)
-        gyro_z = random.uniform(-0.05, 0.05)
+        gyro_x = self._smooth("gyro_x", random.uniform(-0.05, 0.05))
+        gyro_y = self._smooth("gyro_y", random.uniform(-0.05, 0.05))
+        gyro_z = self._smooth("gyro_z", random.uniform(-0.05, 0.05))
 
         campo_jaula_x = self.corrientes_objetivo["X"] * settings.KX
         campo_jaula_y = self.corrientes_objetivo["Y"] * settings.KY
         campo_jaula_z = self.corrientes_objetivo["Z"] * settings.KZ
 
-        mag_x = 24.1 + campo_jaula_x + random.uniform(-1, 1)
-        mag_y = -12.5 + campo_jaula_y + random.uniform(-1, 1)
-        mag_z = 45.2 + campo_jaula_z + random.uniform(-1, 1)
+        mag_x = self._smooth("mag_x", 24.1 + campo_jaula_x + random.uniform(-1, 1))
+        mag_y = self._smooth("mag_y", -12.5 + campo_jaula_y + random.uniform(-1, 1))
+        mag_z = self._smooth("mag_z", 45.2 + campo_jaula_z + random.uniform(-1, 1))
 
         return CubeSatTelemetry(
             timestamp=datetime.now(),
@@ -116,6 +155,8 @@ class SimulationService:
         self.jaula_estado = "ejecutando"
         self.tiempo_simulacion = 0
         self.perfil_activo = perfil
+        self._ema = {k: 0.0 for k in self._ema}
+        self._prev_yaw_unwrapped = None
 
         bx = perfil.get("bx", 0)
         by = perfil.get("by", 0)
@@ -136,6 +177,8 @@ class SimulationService:
         self.jaula_estado = "reposo"
         self.corrientes_objetivo = {"X": 0.0, "Y": 0.0, "Z": 0.0}
         self.tiempo_simulacion = 0
+        self._ema = {k: 0.0 for k in self._ema}
+        self._prev_yaw_unwrapped = None
 
         if jaula_service.is_connected and not jaula_service.simulation_mode:
             jaula_service.set_referencia_campo(0.0, 0.0)

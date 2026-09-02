@@ -16,10 +16,18 @@ function CubeBody({ autoOrient, manualEuler, telemetria, showAxes }) {
 
   useEffect(() => {
     if (autoOrient) {
+      const newYaw = deg2rad(telemetria.yaw || 0)
+      const newRoll = deg2rad(telemetria.roll || 0)
+      let dyaw = newYaw - targetRef.current.yaw
+      if (dyaw > Math.PI) dyaw -= Math.PI * 2
+      else if (dyaw < -Math.PI) dyaw += Math.PI * 2
+      let droll = newRoll - targetRef.current.roll
+      if (droll > Math.PI) droll -= Math.PI * 2
+      else if (droll < -Math.PI) droll += Math.PI * 2
       targetRef.current = {
-        roll: deg2rad(telemetria.roll || 0),
+        roll: targetRef.current.roll + droll,
         pitch: deg2rad(telemetria.pitch || 0),
-        yaw: deg2rad(telemetria.yaw || 0),
+        yaw: targetRef.current.yaw + dyaw,
       }
     } else {
       targetRef.current = {
@@ -33,10 +41,23 @@ function CubeBody({ autoOrient, manualEuler, telemetria, showAxes }) {
   useFrame(() => {
     const c = currentRef.current
     const t = targetRef.current
-    const k = 0.18
-    c.roll += (t.roll - c.roll) * k
+    const k = 0.10
+
+    let dyaw = t.yaw - c.yaw
+    if (dyaw > Math.PI) dyaw -= Math.PI * 2
+    else if (dyaw < -Math.PI) dyaw += Math.PI * 2
+    c.yaw += dyaw * k
+    if (c.yaw > Math.PI) c.yaw -= Math.PI * 2
+    else if (c.yaw < -Math.PI) c.yaw += Math.PI * 2
+
+    let droll = t.roll - c.roll
+    if (droll > Math.PI) droll -= Math.PI * 2
+    else if (droll < -Math.PI) droll += Math.PI * 2
+    c.roll += droll * k
+    if (c.roll > Math.PI) c.roll -= Math.PI * 2
+    else if (c.roll < -Math.PI) c.roll += Math.PI * 2
+
     c.pitch += (t.pitch - c.pitch) * k
-    c.yaw += (t.yaw - c.yaw) * k
 
     if (groupRef.current) {
       groupRef.current.rotation.set(c.pitch, c.yaw, c.roll, 'YZX')
