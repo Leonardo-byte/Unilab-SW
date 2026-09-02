@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ChevronUp, ChevronDown, Radio, RotateCcw, Activity } from 'lucide-react'
 import { useDevice } from '../context/DeviceContext.jsx'
+import CubeSat3D from '../components/CubeSat3D.jsx'
 
 function Telemetria() {
   const { cubesatConectado } = useDevice()
@@ -197,35 +198,19 @@ function Telemetria() {
               </div>
             </div>
 
-            <div className="w-full h-[calc(100%-3rem)] bg-[#0a0c10] rounded border border-gray-800 relative overflow-hidden flex items-center justify-center">
+            <div className="w-full h-[calc(100%-3rem)] bg-[#0a0c10] rounded border border-gray-800 relative overflow-hidden">
 
-              <div className="absolute inset-0 opacity-10" style={{
+              <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
                 backgroundImage: 'linear-gradient(rgba(6, 182, 212, 0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(6, 182, 212, 0.3) 1px, transparent 1px)',
                 backgroundSize: '40px 40px'
               }}></div>
 
-              <div className="relative" style={{ transform: 'perspective(1000px) rotateX(20deg) rotateY(-30deg)' }}>
-                <div className="w-48 h-48 border-2 border-cyan-400 relative" style={{
-                  transformStyle: 'preserve-3d',
-                  boxShadow: '0 0 30px rgba(6, 182, 212, 0.3)'
-                }}>
-                  <div className="absolute inset-0 border border-cyan-400/30 bg-cyan-400/5"></div>
-                  <div className="absolute inset-0 border border-cyan-400/30 bg-cyan-400/5" style={{ transform: 'translateZ(192px)' }}></div>
-                  <div className="absolute inset-0 border border-cyan-400/30 bg-cyan-400/5" style={{ transform: 'rotateY(90deg) translateZ(96px)' }}></div>
-                  <div className="absolute inset-0 border border-cyan-400/30 bg-cyan-400/5" style={{ transform: 'rotateY(-90deg) translateZ(96px)' }}></div>
-                  <div className="absolute inset-0 border border-cyan-400/30 bg-cyan-400/5" style={{ transform: 'rotateX(90deg) translateZ(96px)' }}></div>
-                  <div className="absolute inset-0 border border-cyan-400/30 bg-cyan-400/5" style={{ transform: 'rotateX(-90deg) translateZ(96px)' }}></div>
-
-                  <div className="absolute top-1/2 left-1/2 w-32 h-1 bg-red-500 origin-left" style={{ transform: 'translate(-50%, -50%)' }}>
-                    <div className="absolute right-0 top-1/2 -translate-y-1/2 text-red-500 font-bold text-lg">X</div>
-                  </div>
-                  <div className="absolute top-1/2 left-1/2 w-32 h-1 bg-green-500 origin-left" style={{ transform: 'translate(-50%, -50%) rotate(90deg)' }}>
-                    <div className="absolute right-0 top-1/2 -translate-y-1/2 text-green-500 font-bold text-lg">Y</div>
-                  </div>
-                  <div className="absolute top-1/2 left-1/2 w-32 h-1 bg-blue-500 origin-left" style={{ transform: 'translate(-50%, -50%) rotate(-90deg)' }}>
-                    <div className="absolute right-0 top-1/2 -translate-y-1/2 text-blue-500 font-bold text-lg">Z</div>
-                  </div>
-                </div>
+              <div className="relative w-full h-full">
+                <CubeSat3D
+                  roll={telemetria.roll}
+                  pitch={telemetria.pitch}
+                  yaw={telemetria.yaw}
+                />
               </div>
 
               <div className="absolute top-4 right-4 w-16 h-16">
