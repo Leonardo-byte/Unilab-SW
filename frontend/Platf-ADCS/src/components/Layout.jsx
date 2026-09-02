@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { LayoutDashboard, SlidersHorizontal, Rocket, Wifi, Settings, History, Sun, User, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useDevice } from '../context/DeviceContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
+import logotipo from '../assets/logotipo.jpg'
 
 function Layout() {
   const location = useLocation()
@@ -24,11 +25,24 @@ function Layout() {
     <div className="flex h-screen bg-[#0a0c10] text-white font-mono">
 
       <aside className={`${sidebarAbierto ? 'w-64' : 'w-20'} bg-[#14171e] border-r border-gray-800 flex flex-col transition-all duration-300`}>
-        <div className="p-6 border-b border-gray-800 flex items-center justify-between">
-          {sidebarAbierto && <h1 className="text-3xl font-bold text-white tracking-wider">UNILAB</h1>}
+        <div className="p-4 border-b border-gray-800 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="relative w-10 h-10 shrink-0 rounded-md overflow-hidden border border-cyan-400/30 bg-black/40">
+              <img
+                src={logotipo}
+                alt="Logo Magnéticos"
+                className="w-full h-full object-cover"
+              />
+            </div>
+            {sidebarAbierto && (
+              <div className="leading-tight whitespace-nowrap">
+                <h1 className="text-lg font-bold text-white tracking-wider">MAGNÉTICOS</h1>
+              </div>
+            )}
+          </div>
           <button
             onClick={() => setSidebarAbierto(!sidebarAbierto)}
-            className="p-1.5 rounded-md hover:bg-[#1e2229] text-gray-400 hover:text-white transition-colors"
+            className="p-1.5 rounded-md hover:bg-[#1e2229] text-gray-400 hover:text-white transition-colors shrink-0"
           >
             {sidebarAbierto ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
           </button>

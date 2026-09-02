@@ -16,18 +16,10 @@ function CubeBody({ autoOrient, manualEuler, telemetria, showAxes }) {
 
   useEffect(() => {
     if (autoOrient) {
-      const newYaw = deg2rad(telemetria.yaw || 0)
-      const newRoll = deg2rad(telemetria.roll || 0)
-      let dyaw = newYaw - targetRef.current.yaw
-      if (dyaw > Math.PI) dyaw -= Math.PI * 2
-      else if (dyaw < -Math.PI) dyaw += Math.PI * 2
-      let droll = newRoll - targetRef.current.roll
-      if (droll > Math.PI) droll -= Math.PI * 2
-      else if (droll < -Math.PI) droll += Math.PI * 2
       targetRef.current = {
-        roll: targetRef.current.roll + droll,
+        roll: deg2rad(telemetria.roll || 0),
         pitch: deg2rad(telemetria.pitch || 0),
-        yaw: targetRef.current.yaw + dyaw,
+        yaw: deg2rad(telemetria.yaw || 0),
       }
     } else {
       targetRef.current = {
@@ -38,26 +30,26 @@ function CubeBody({ autoOrient, manualEuler, telemetria, showAxes }) {
     }
   }, [autoOrient, manualEuler.roll, manualEuler.pitch, manualEuler.yaw, telemetria.roll, telemetria.pitch, telemetria.yaw])
 
-  useFrame(() => {
+  useFrame((_, dt) => {
     const c = currentRef.current
     const t = targetRef.current
-    const k = 0.10
 
-    let dyaw = t.yaw - c.yaw
-    if (dyaw > Math.PI) dyaw -= Math.PI * 2
-    else if (dyaw < -Math.PI) dyaw += Math.PI * 2
-    c.yaw += dyaw * k
-    if (c.yaw > Math.PI) c.yaw -= Math.PI * 2
-    else if (c.yaw < -Math.PI) c.yaw += Math.PI * 2
+    const step = 1 - Math.exp(-6 * dt)
+    const maxRadPerSec = 3.0
 
-    let droll = t.roll - c.roll
-    if (droll > Math.PI) droll -= Math.PI * 2
-    else if (droll < -Math.PI) droll += Math.PI * 2
-    c.roll += droll * k
-    if (c.roll > Math.PI) c.roll -= Math.PI * 2
-    else if (c.roll < -Math.PI) c.roll += Math.PI * 2
+    function approach(current, target) {
+      let d = target - current
+      if (d > Math.PI) d -= Math.PI * 2
+      else if (d < -Math.PI) d += Math.PI * 2
+      const maxStep = maxRadPerSec * dt
+      if (d > maxStep) d = maxStep
+      else if (d < -maxStep) d = -maxStep
+      return current + d
+    }
 
-    c.pitch += (t.pitch - c.pitch) * k
+    c.roll = approach(c.roll, t.roll)
+    c.pitch += (t.pitch - c.pitch) * step
+    c.yaw = approach(c.yaw, t.yaw)
 
     if (groupRef.current) {
       groupRef.current.rotation.set(c.pitch, c.yaw, c.roll, 'YZX')
