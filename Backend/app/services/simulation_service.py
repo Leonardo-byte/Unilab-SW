@@ -36,7 +36,7 @@ class SimulationService:
 
         self.tiempo_simulacion += 1
 
-        tiempo = self.tiempo_simulacion * 0.1
+        tiempo = self.tiempo_simulacion * settings.WS_UPDATE_INTERVAL
 
         corriente_x = self._calcular_corriente_actual("X", tiempo)
         corriente_y = self._calcular_corriente_actual("Y", tiempo)
@@ -71,7 +71,7 @@ class SimulationService:
             if real:
                 return real
 
-        tiempo = self.tiempo_simulacion * 0.1
+        tiempo = self.tiempo_simulacion * settings.WS_UPDATE_INTERVAL
 
         roll = 14.2 + math.sin(tiempo * 0.05) * 2 + random.uniform(-0.5, 0.5)
         pitch = -2.5 + math.cos(tiempo * 0.03) * 1.5 + random.uniform(-0.5, 0.5)

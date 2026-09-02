@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     CUBESAT_UDP_PORT: int = 5005
     CUBESAT_HTTP_PORT: int = 80
 
-    WS_UPDATE_INTERVAL: float = 1.0  
+    WS_UPDATE_INTERVAL: float = 0.1  
     
     KX: float = 54.169
     KY: float = 44.906
