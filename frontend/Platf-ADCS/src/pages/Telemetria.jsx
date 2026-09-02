@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronUp, ChevronDown, Radio, RotateCcw, Activity, Wifi, WifiOff } from 'lucide-react'
+import { ChevronUp, ChevronDown, Radio, RotateCcw, Activity } from 'lucide-react'
 import { useDevice } from '../context/DeviceContext.jsx'
 
 function Telemetria() {
