@@ -37,7 +37,14 @@ function EnsayoMagnetico() {
   useEffect(() => {
     const magnitud = Math.sqrt(Bx*Bx + By*By + Bz*Bz).toFixed(1)
     setMagnitudTotal(magnitud)
-  }, [Bx, By, Bz])
+
+    const magnitudFuncion = Math.sqrt(
+      funcionParams.offsetX**2 + funcionParams.offsetY**2 + funcionParams.offsetZ**2
+    ).toFixed(1)
+    if (modoActivo === 'funcion') {
+      setMagnitudTotal(magnitudFuncion)
+    }
+  }, [Bx, By, Bz, funcionParams, modoActivo])
 
   useEffect(() => {
     if (!jaulaConectada) {
@@ -137,7 +144,8 @@ function EnsayoMagnetico() {
   ])
 
   const validarPerfil = () => {
-    if (magnitudTotal >= 35 && magnitudTotal <= 95) {
+    const magnitude = parseFloat(magnitudTotal)
+    if (magnitude >= 0 && magnitude <= 150) {
       setPerfilValidado(true)
       setLogs(prev => [...prev, {
         hora: new Date().toLocaleTimeString(),
@@ -171,7 +179,11 @@ function EnsayoMagnetico() {
       return
     }
     try {
-      await api.iniciarEnsayo(Bx, By, Bz)
+      if (modoActivo === 'funcion') {
+        await api.iniciarEnsayo(funcionParams.offsetX, funcionParams.offsetY, funcionParams.offsetZ)
+      } else {
+        await api.iniciarEnsayo(Bx, By, Bz)
+      }
       setEnsayoActivo(true)
       setDatosGrafica([])
       setLogs(prev => [...prev, {

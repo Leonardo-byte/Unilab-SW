@@ -18,13 +18,12 @@ class Settings(BaseSettings):
     
     KX: float = 54.169
     KY: float = 44.906
-    KZ: float = 0.0
+    KZ: float = 29.4258
     
     MIN_CURRENT: float = 1.3  
     MAX_CURRENT: float = 3.5  
-    MIN_FIELD: float = 35.0   
-    MAX_FIELD: float = 0.0  
-    MAX_TEMP: float = 150.0  
+    MIN_FIELD: float = 0.0  
+    MAX_FIELD: float = 150.0   
     
     class Config:
         env_file = ".env"
