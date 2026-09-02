@@ -4,7 +4,7 @@ class Settings(BaseSettings):
     
     APP_NAME: str = "UNILAB Backend API"
     DEBUG: bool = True
-    SIMULATION_MODE: bool = False 
+    SIMULATION_MODE: bool = True 
     
     
     JAULA_SERIAL_PORT: str = "/dev/ttyUSB0"  
@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     
     KX: float = 54.169
     KY: float = 44.906
-    KZ: float = 29.4258
+    KZ: float = 29.426
     
     MIN_CURRENT: float = 1.3  
     MAX_CURRENT: float = 3.5  

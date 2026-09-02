@@ -5,7 +5,7 @@ from typing import Dict, List
 from app.models.telemetry import JaulaTelemetry, CubeSatTelemetry
 from app.config import settings
 from app.services.jaula_service import jaula_service
-from app.services.cubesat_service import cubesat_service
+from app.services.cubesat_service import cubesat_service, CubeSatService
 
 class SimulationService:
 
@@ -77,10 +77,7 @@ class SimulationService:
         pitch = -2.5 + math.cos(tiempo * 0.03) * 1.5 + random.uniform(-0.5, 0.5)
         yaw = 89.1 + math.sin(tiempo * 0.02) * 3 + random.uniform(-0.5, 0.5)
 
-        q0 = 0.707
-        q1 = 0.000
-        q2 = 0.707
-        q3 = 0.000
+        q0, q1, q2, q3 = CubeSatService._euler_a_cuaternion(roll, pitch, yaw)
 
         acc_x = 0.98 + random.uniform(-0.02, 0.02)
         acc_y = 0.12 + random.uniform(-0.02, 0.02)
@@ -112,14 +109,7 @@ class SimulationService:
             gyro_z=round(gyro_z, 2),
             mag_x=round(mag_x, 1),
             mag_y=round(mag_y, 1),
-            mag_z=round(mag_z, 1),
-            sun_1=int(2847 + random.randint(-50, 50)),
-            sun_2=int(123 + random.randint(-20, 20)),
-            sun_3=int(3102 + random.randint(-50, 50)),
-            sun_4=int(89 + random.randint(-20, 20)),
-            sun_5=int(1456 + random.randint(-30, 30)),
-            sun_6=int(201 + random.randint(-20, 20)),
-            adcs_mode="SUN_ACQUISITION"
+            mag_z=round(mag_z, 1)
         )
 
     def iniciar_ensayo(self, perfil: Dict[str, float]):

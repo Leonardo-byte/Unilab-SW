@@ -14,10 +14,7 @@ function Telemetria() {
     q3: 0,
     acc: { x: 0, y: 0, z: 0 },
     gyro: { x: 0, y: 0, z: 0 },
-    mag: { x: 0, y: 0, z: 0 },
-    sun: { x: 0, negX: 0, y: 0, negY: 0, z: 0, negZ: 0 },
-    adcsMode: '---',
-    sunSensors: { sun_1: 0, sun_2: 0, sun_3: 0, sun_4: 0, sun_5: 0, sun_6: 0 }
+    mag: { x: 0, y: 0, z: 0 }
   })
 
   const [consolaExpandida, setConsolaExpandida] = useState(true)
@@ -53,24 +50,7 @@ function Telemetria() {
             q3: c.q3 || 0,
             acc: { x: c.acc_x || 0, y: c.acc_y || 0, z: c.acc_z || 0 },
             gyro: { x: c.gyro_x || 0, y: c.gyro_y || 0, z: c.gyro_z || 0 },
-            mag: { x: c.mag_x || 0, y: c.mag_y || 0, z: c.mag_z || 0 },
-            sun: {
-              x: c.sun_1 || 0,
-              negX: c.sun_2 || 0,
-              y: c.sun_3 || 0,
-              negY: c.sun_4 || 0,
-              z: c.sun_5 || 0,
-              negZ: c.sun_6 || 0
-            },
-            adcsMode: c.adcs_mode || '---',
-            sunSensors: {
-              sun_1: c.sun_1 || 0,
-              sun_2: c.sun_2 || 0,
-              sun_3: c.sun_3 || 0,
-              sun_4: c.sun_4 || 0,
-              sun_5: c.sun_5 || 0,
-              sun_6: c.sun_6 || 0
-            }
+            mag: { x: c.mag_x || 0, y: c.mag_y || 0, z: c.mag_z || 0 }
           })
 
           setLogsTelemetria(prev => {
@@ -78,13 +58,7 @@ function Telemetria() {
               timestamp: Math.floor(Date.now() / 1000),
               roll: c.roll,
               pitch: c.pitch,
-              yaw: c.yaw,
-              sun_1: c.sun_1,
-              sun_2: c.sun_2,
-              sun_3: c.sun_3,
-              sun_4: c.sun_4,
-              sun_5: c.sun_5,
-              sun_6: c.sun_6
+              yaw: c.yaw
             }
             return [...prev, nuevo].slice(-50)
           })
